@@ -1,0 +1,54 @@
+// Rule checks. Run with: node src/test.js
+const C = require('./core.js'), assert = require('assert');
+let n = 0; const ok = (name, fn) => { fn(); n++; console.log('pass  ' + name); };
+
+ok('training day has the brief data', () => {
+  assert.strictEqual(C.TRAINING.flights.length, 18);
+  assert.strictEqual(C.TRAINING.desks, 12);
+  assert.deepStrictEqual(C.TRAINING.flights.filter(f => f.high).map(f => f.id), ['AL220', 'CJ339', 'EZ458']);
+});
+ok('a stand clash is reported', () => {
+  const sc = C.TRAINING, plan = C.housePlan(sc), [a, b] = sc.flights;
+  plan[b.id].stand = plan[a.id].stand; plan[b.id].delay = 0; plan[a.id].delay = 0;
+  assert(C.evaluate(sc, plan).flights[b.id].issues.some(i => i.includes('clashes')));
+});
+ok('a small stand cannot take a large aircraft', () => {
+  const sc = C.TRAINING, plan = C.housePlan(sc), f = sc.flights.find(x => x.cls === 'L');
+  plan[f.id].stand = 'S1';
+  assert(C.evaluate(sc, plan).flights[f.id].issues.some(i => i.includes('too small')));
+});
+ok('house plan gets every training flight away', () => {
+  const e = C.evaluate(C.TRAINING, C.housePlan(C.TRAINING));
+  assert.strictEqual(e.departed, 18);
+});
+ok('the same shift and roll always deal the same wave', () => {
+  assert.deepStrictEqual(C.shift(4, 2), C.shift(4, 2));
+  assert.notDeepStrictEqual(C.shift(4, 1).flights, C.shift(4, 2).flights);
+});
+ok('gold is never below the house planner', () => {
+  for (const lv of [1, 3, 5, 7]) { const t = C.targets(C.shift(lv, 0), 1500); assert(t.gold >= t.house && t.silver >= t.house); }
+});
+ok('cancelling costs more than the longest delay', () => {
+  assert(C.RULES.failPenalty > C.RULES.ptsHigh - 0 && C.RULES.failPenalty + C.RULES.ptsNormal > C.RULES.maxDelay * C.RULES.delayNormal);
+});
+ok('disruptions only touch what can still be changed', () => {
+  for (let lv = 1; lv <= 10; lv++) for (let roll = 0; roll < 3; roll++) {
+    const sc = C.shift(lv, roll);
+    assert(sc.events.length >= 1);
+    for (const e of sc.events) {
+      const f = e.flight && sc.flights.find(x => x.id === e.flight);
+      if (e.kind === 'late') assert(e.at < f.dep - C.RULES.standBefore, 'late announced after stand time');
+      if (e.kind === 'surge') assert(e.at < f.open, 'surge announced after check-in opened');
+      if (e.kind === 'closure') assert(e.from > e.at, 'closure starts before it is announced');
+    }
+  }
+});
+ok('a closure spares a flight already on the stand when it is announced', () => {
+  const sc = JSON.parse(JSON.stringify(C.TRAINING)), plan = C.housePlan(sc), f = sc.flights[5], p = plan[f.id], dep = f.dep + p.delay;
+  sc.events = [{ at: dep - 30, kind: 'closure', fac: p.stand, from: dep - 20, to: dep + 30 }];
+  assert(!C.evaluate(C.scenarioAt(sc, Infinity), plan).flights[f.id].issues.some(i => i.includes('closed')));
+});
+ok('the live house controller never scores above gold', () => {
+  for (const lv of [2, 5, 8]) { const t = C.targets(C.shift(lv, 1), 1500); assert(t.gold >= t.house); }
+});
+console.log(`\n${n} checks passed`);

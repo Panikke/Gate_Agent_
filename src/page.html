@@ -1,0 +1,398 @@
+<title>Morning Wave</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=B612+Mono:wght@400;700&family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&display=swap">
+<style>
+/* Layout: scoreboard strip on top; departures board (dark split-flap panel) beside the flight editor and apron timeline; stacks on phones. */
+:root{--bg:#e8ecef;--surface:#f8fafb;--ink:#14212b;--muted:#566673;--line:#c7d0d7;--accent:#f2b705;--accent-ink:#14212b;
+--ok:#17794f;--bad:#c2332a;--warn:#a86200;--board:#111c25;--board-ink:#f6d868;--board-dim:#8c96a0;--board-line:#263642;
+--blk-ok:#cfe9dc;--blk-ok-ink:#0d4a30;--blk-bad:#f6cfcb;--blk-bad-ink:#7c1c16;--shut:#d5dbe0;
+--display:"Barlow Condensed","Arial Narrow",sans-serif;--body:"Barlow",system-ui,sans-serif;--data:"B612 Mono",ui-monospace,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e161d;--surface:#16212a;--ink:#e5ecf1;--muted:#93a3af;--line:#2b3a46;--accent:#f2b705;--accent-ink:#14212b;
+--ok:#45c48b;--bad:#f2695e;--warn:#f0a53a;--board:#080d12;--board-ink:#f6d868;--board-dim:#7d8892;--board-line:#1f2c36;
+--blk-ok:#1d4d39;--blk-ok-ink:#c9f2de;--blk-bad:#5e2420;--blk-bad-ink:#ffd9d5;--shut:#222e38;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0e161d;--surface:#16212a;--ink:#e5ecf1;--muted:#93a3af;--line:#2b3a46;--accent:#f2b705;--accent-ink:#14212b;
+--ok:#45c48b;--bad:#f2695e;--warn:#f0a53a;--board:#080d12;--board-ink:#f6d868;--board-dim:#7d8892;--board-line:#1f2c36;
+--blk-ok:#1d4d39;--blk-ok-ink:#c9f2de;--blk-bad:#5e2420;--blk-bad-ink:#ffd9d5;--shut:#222e38;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 var(--body);padding-block:16px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+h1,h2{font-family:var(--display);margin:0;letter-spacing:.02em;text-transform:uppercase;text-wrap:balance}
+h1{font-size:34px;line-height:1}h2{font-size:18px;color:var(--muted)}
+button,select{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:var(--surface);border-radius:4px;padding:6px 12px;min-height:36px}
+button:hover:not(:disabled){border-color:var(--ink)}button:disabled{opacity:.4;cursor:not-allowed}
+button.go{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+select{background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:6px 8px;min-height:36px}
+.top{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:end;justify-content:space-between}
+.top p{margin:4px 0 0;color:var(--muted);max-width:60ch}
+.ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.score{display:grid;grid-template-columns:repeat(5,1fr);border:1px solid var(--line);background:var(--surface);border-radius:4px}
+.score div{padding:8px 12px;border-left:1px solid var(--line);min-width:0}.score div:first-child{border-left:0}
+.score b{display:block;font:700 22px/1.1 var(--data);font-variant-numeric:tabular-nums}
+.score span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.note{font-size:14px;color:var(--warn);font-weight:500}
+.main{display:grid;grid-template-columns:minmax(0,430px) minmax(0,1fr);gap:14px;align-items:start}
+.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.board{background:var(--board);color:var(--board-ink);border-radius:4px;padding:10px 6px;font:13px/1.2 var(--data);font-variant-numeric:tabular-nums}
+.board .hd,.board .row{display:grid;grid-template-columns:3.6em 4.4em minmax(0,1fr) 1.2em 2em 2em 6.4em;gap:6px;align-items:center;padding:5px 6px}
+.board .hd{color:var(--board-dim);font-size:11px;text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--board-line)}
+.board .row{width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--board-line);border-radius:0;color:inherit;font:inherit;min-height:34px}
+.board .row:hover{background:var(--board-line)}
+.board .row.sel{background:var(--accent);color:var(--accent-ink)}
+.board .row.sel .st,.board .row.sel .dim{color:var(--accent-ink)}
+.board .dest{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.board .dim{color:var(--board-dim)}
+.board .st{font-size:11px;text-transform:uppercase;text-align:right}
+.st.ok{color:#5fd79f}.st.bad{color:#ff8479}.st.wait{color:var(--board-dim)}
+.hi{font-weight:700}.hi::after{content:"★";margin-left:2px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.ed-h{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline}
+.ed-h b{font:700 20px var(--data)}.ed-h span{color:var(--muted);font-size:14px}
+.fld{display:grid;grid-template-columns:5.5em minmax(0,1fr);gap:8px;align-items:center}
+.fld>label,.fld>span.l{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:13px var(--data);padding:4px 8px;min-height:34px;min-width:52px}
+.chip small{color:var(--muted);font-size:10px;margin-left:3px}
+.need{font-style:normal;color:var(--muted);font-size:13px;align-self:center}
+.chip.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}.chip.on small{color:inherit}
+.chip.clash:not(.on){border-color:var(--bad);color:var(--bad);border-style:dashed}
+.step{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.step b{font:700 16px var(--data);min-width:2.6em;text-align:center}
+.step button{min-width:38px;padding:4px 6px}.step em{font-style:normal;color:var(--muted);font-size:13px}
+.issues{margin:0;padding:0;list-style:none;font-size:14px;display:flex;flex-direction:column;gap:2px}
+.issues li{color:var(--bad)}.issues li.fine{color:var(--ok)}
+.tl-scroll{overflow-x:auto}
+.tl{min-width:700px;position:relative;font:11px var(--data)}
+.tl .r{display:grid;grid-template-columns:48px minmax(0,1fr);align-items:stretch}
+.tl .lab{padding:6px 0;color:var(--muted);white-space:nowrap}.tl .lab b{color:var(--ink)}
+.tl .trk{position:relative;height:28px;border-top:1px solid var(--line);background:repeating-linear-gradient(90deg,transparent 0,transparent calc(100%/12 - 1px),var(--line) calc(100%/12 - 1px),var(--line) calc(100%/12));cursor:pointer}
+.tl .shut{position:absolute;top:0;bottom:0;background:var(--shut);opacity:.9}
+.tl .blk{position:absolute;top:3px;bottom:3px;border:0;border-radius:2px;padding:0 4px;min-height:0;font:11px/22px var(--data);overflow:hidden;white-space:nowrap;text-align:left;background:var(--blk-ok);color:var(--blk-ok-ink)}
+.tl .blk.bad{background:var(--blk-bad);color:var(--blk-bad-ink)}
+.tl .blk.sel{outline:2px solid var(--accent);outline-offset:0;z-index:2}
+.tl .axis{position:relative;height:18px;color:var(--muted)}.tl .axis i{position:absolute;font-style:normal;transform:translateX(-50%)}
+.tl .grp{font:600 12px var(--display);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:8px 0 2px}
+.tl svg{display:block;width:100%;height:64px;border-top:1px solid var(--line)}
+.cursor{position:absolute;top:0;bottom:0;width:2px;background:var(--accent);pointer-events:none;z-index:3}
+.result{border-color:var(--accent);border-width:2px}
+.alert{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;background:var(--board);color:var(--board-ink);border-radius:4px;padding:10px 14px;font-size:14px}
+.alert b{font-family:var(--data);margin-right:6px}
+.alert.hot{background:var(--accent);color:var(--accent-ink)}
+.alert .a-t{flex:1 1 380px;min-width:0}.alert .a-c{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.alert button{background:transparent;color:inherit;border-color:currentColor}
+.alert.hot button.go{background:var(--accent-ink);color:var(--accent);border-color:var(--accent-ink)}
+.secs{font:700 18px var(--data);min-width:3em;text-align:right}
+.bar{width:120px;height:6px;background:rgba(0,0,0,.18);border-radius:3px;overflow:hidden}.bar i{display:block;height:100%;background:var(--accent-ink)}
+.lock{font-size:14px;color:var(--warn);font-weight:500}
+.log{list-style:none;margin:0;padding:0;font-size:13px;display:flex;flex-direction:column;gap:4px;max-height:260px;overflow:auto}
+.log b{font-family:var(--data);color:var(--muted);margin-right:4px}.log li.ev{color:var(--warn)}.log li.bad{color:var(--bad)}.log li.warn{color:var(--bad);font-style:italic}
+.dl{margin:4px 0 0;padding-left:18px}
+.tl .blk{touch-action:none;cursor:grab}.tl .blk.dragging{cursor:grabbing;z-index:5;opacity:.9;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.tl .blk.locked{outline:1px dashed var(--muted);outline-offset:-1px}.tl .blk.gone{opacity:.45}
+.tl .trk.target{background-color:color-mix(in srgb,var(--accent) 18%,transparent)}
+.tl .shut.hatch{background:repeating-linear-gradient(135deg,var(--shut) 0 6px,var(--bad) 6px 8px);opacity:.55}
+.result .big{font:700 28px var(--data)}
+.result textarea{width:100%;font:13px var(--data);background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:8px;resize:none}
+details{font-size:14px}summary{cursor:pointer;font-weight:600}details ul{margin:8px 0 0;padding-left:18px;max-width:70ch}
+@media (max-width:900px){.main{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:520px){h1{font-size:28px}.score{grid-template-columns:repeat(3,1fr)}.score div:nth-child(4){border-left:0}.score div:nth-child(n+4){border-top:1px solid var(--line)}
+.board .hd,.board .row{grid-template-columns:3.4em 4.2em minmax(0,1fr) 1.9em 1.9em 5.6em;font-size:12px}.board .cls{display:none}.fld{grid-template-columns:minmax(0,1fr)}}
+</style>
+<div class="wrap">
+  <div class="top">
+    <div><h1>Morning Wave</h1><p>Get every departure off the apron. Give each flight a stand, a gate and check-in desks, then start the shift and handle what goes wrong. Each shift you clear unlocks a harder one.</p></div>
+    <div class="ctl">
+      <label for="scn" style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Shift</label>
+      <select id="scn"></select>
+      <button id="reroll" hidden>New wave</button><button id="clear">Clear plan</button><button id="house">Show house plan</button><button id="run" class="go">Start the shift</button>
+    </div>
+  </div>
+  <div class="score" id="score"></div>
+  <div class="note" id="note" hidden></div>
+  <div class="alert" id="alert" hidden></div>
+  <div id="result"></div>
+  <div class="main">
+    <div class="col"><div class="board" id="board"></div><div class="panel" id="logp" hidden><h2>Shift log</h2><ul class="log" id="log"></ul></div></div>
+    <div class="col">
+      <div class="panel" id="editor"></div>
+      <div class="panel"><h2>Apron and gates</h2><div class="tl-scroll"><div class="tl" id="tl"></div></div></div>
+      <div class="panel"><details id="how"><summary>Rules and scoring</summary><ul id="rules"></ul></details></div>
+    </div>
+  </div>
+</div>
+<script>
+/*CORE*/
+</script>
+<script>
+(function(){
+const {RULES:R,CLS,hhmm,evaluate,housePlan,minDesks,scenarioAt,describe,lockAt}=Core, $=id=>document.getElementById(id);
+const T0=390,T1=750,SPAN=T1-T0,pc=m=>((Math.max(T0,Math.min(T1,m))-T0)/SPAN*100).toFixed(3)+'%';
+const MS_PER_MIN=90;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const num=n=>n.toLocaleString('en-GB'), clone=o=>JSON.parse(JSON.stringify(o));
+const store={get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+// Starting position for the training day: the allocations from the planner's own spreadsheet, conflicts included.
+const SHEET={stand:['S2','S1','S3','S4','S5','S2','S1','S6','S3','S4','S5','S2','S4','S3'],gate:['A2','A1','A3','B1','B2','A2','A1','A3'],desks:[2,1,1,1,1,2,1,2,2,2,2,1,2,1,2,2,2,2],delay:{4:3}};
+let sc,plan,sel,ev,known,tg=null,lvl=0,run=null,result=null,drag=null,dirty=false,noClick=false;
+let progress=store.get('mw-progress')||0,rolls=store.get('mw-rolls')||{},medals=store.get('mw-medals')||{};
+const MED=['','Bronze','Silver','Gold'];
+const decideSecs=()=>lvl<=1?60:lvl<=4?45:lvl<=7?35:25;
+const P=()=>run?run.plan:plan;
+const now=()=>run?run.c:-Infinity;
+
+function options(){let h='<option value="0">Training day (the brief)</option>';
+  for(let n=1;n<=progress+1;n++)h+=`<option value="${n}">Shift ${n}: ${Core.twist(n)}${medals[n]?' · '+MED[medals[n]]:''}</option>`;
+  $('scn').innerHTML=h;$('scn').value=lvl}
+function blank(){const p={};sc.flights.forEach(f=>p[f.id]={stand:null,gate:null,desks:1,delay:0});return p}
+function load(n){
+  if(run)return;
+  lvl=+n;sc=lvl?Core.shift(lvl,rolls[lvl]||0):Core.TRAINING;store.set('mw-last',lvl);
+  plan=store.get('mw-plan-'+sc.id);
+  if(!plan||sc.flights.some(f=>!plan[f.id])){plan=blank();
+    if(!lvl)sc.flights.forEach((f,i)=>plan[f.id]={stand:SHEET.stand[i]||null,gate:SHEET.gate[i]||null,desks:SHEET.desks[i],delay:SHEET.delay[i]||0});}
+  sel=sc.flights[0].id;result=null;tg=store.get('mw-tg3-'+sc.id);
+  const ne=sc.events.length,notes=(lvl?sc.notes:['Loaded with the plan from your spreadsheet so far. Red means a clash or a rule broken. Stands open at 07:00, but the first flights need theirs from 06:45.'])
+    .concat([`${ne} disruption${ne>1?'s':''} will be announced during the shift. Each one pauses the clock for ${decideSecs()} seconds while you re-plan.`]);
+  $('note').hidden=false;$('note').innerHTML=(lvl?'<b>Notices for shift '+lvl+'.</b> ':'')+notes.map(esc).join(' ');
+  $('house').hidden=!!lvl;$('reroll').hidden=!lvl;options();render();
+  if(!tg)setTimeout(()=>{const id=sc.id,t=Core.targets(sc);store.set('mw-tg3-'+id,t);if(sc.id===id){tg=t;render()}},30);
+}
+
+// Editing, with the live-shift locks applied.
+function lockOf(id){const f=known.flights.find(x=>x.id===id);return run?lockAt(f,P()[id],run.c):{state:'free',minDelay:0,desks:0}}
+function set(id,patch){
+  if(result)return;
+  const p=P()[id],L=lockOf(id),np=Object.assign({},p);
+  if(L.state==='gone')return;
+  if('delay' in patch)np.delay=Math.max(L.minDelay,Math.min(R.maxDelay,patch.delay));
+  if(L.state==='free'){for(const k of ['stand','gate'])if(k in patch)np[k]=patch[k];
+    if('desks' in patch&&!L.desks)np.desks=Math.max(1,Math.min(R.maxDesks,patch.desks));}
+  P()[id]=np;if(!run){store.set('mw-plan-'+sc.id,plan);result=null}
+  render();
+}
+
+function status(f,r){
+  const fr=run?run.frozen:result?run0.frozen:null;
+  if(fr&&fr[f.id]){const z=fr[f.id];return z.ok?['ok',z.delay?'Left +'+z.delay:'Departed']:['bad','Cancelled']}
+  if(!run)return r.ok?['ok',r.delay?'Delay +'+r.delay:'On time']:['bad',r.issues.length+' issue'+(r.issues.length>1?'s':'')];
+  const c=run.c;
+  if(!r.ok)return['bad','At risk'];
+  if(c>=r.dep-R.gateBefore)return['wait','Boarding'];
+  if(c>=r.dep-R.standBefore)return['wait','On stand'];
+  if(c>=f.open)return['wait','Check-in'];return['wait',r.delay?'Delay +'+r.delay:'Scheduled'];
+}
+function renderBoard(){
+  $('board').innerHTML='<div class="hd"><span>Time</span><span>Flight</span><span>To</span><span class="cls">Cl</span><span>Std</span><span>Gate</span><span style="text-align:right">Status</span></div>'+
+  known.flights.map(f=>{const r=ev.flights[f.id],[k,txt]=status(f,r);
+    return `<button class="row${f.id===sel?' sel':''}" data-f="${f.id}" aria-pressed="${f.id===sel}"><span>${hhmm(r.dep)}</span><span class="${f.high?'hi':''}">${f.id}</span><span class="dest">${esc(f.dest)}${f.late?' (late in)':''}</span><span class="cls dim">${f.cls}</span><span>${r.stand||'<span class="dim">--</span>'}</span><span>${r.gate||'<span class="dim">--</span>'}</span><span class="st ${k}">${txt}</span></button>`}).join('');
+}
+function medal(s){return !tg?0:s>=tg.gold?3:s>=tg.silver?2:s>tg.house?1:0}
+function renderScore(){
+  let s,label;
+  if(result){s=result.score;label='Final score'}
+  else if(run){s=Object.values(run.frozen).reduce((a,z)=>a+z.points,0);label='Score so far'}
+  else{s=ev.score;label='Plan score if nothing goes wrong'}
+  const t=v=>tg?num(v):'…',gone=run?Object.values(run.frozen).filter(z=>z.ok).length:ev.departed;
+  $('score').innerHTML=`<div><b>${num(s)}</b><span>${label}</span></div><div><b>${t(tg&&tg.house)}</b><span>House controller</span></div><div><b>${t(tg&&tg.silver)}</b><span>Silver · clears shift</span></div><div><b>${t(tg&&tg.gold)}</b><span>Gold</span></div><div><b>${result?result.departed:gone}/${ev.total}</b><span>${run||result?'Departed':'Set to depart'}</span></div>`;
+}
+function probe(f,kind,id){const tmp=clone(P());tmp[f.id][kind]=id;const K=kind[0].toUpperCase()+kind.slice(1)+' '+id;return evaluate(known,tmp).flights[f.id].issues.filter(x=>x.startsWith(K))}
+function renderEditor(){
+  const f=known.flights.find(x=>x.id===sel),p=(result?run0.plan:P())[f.id],r=ev.flights[f.id],w=ev.win[f.id],L=lockOf(f.id),fz=run?run.frozen[f.id]:result?run0.frozen[f.id]:null;
+  const facLock=L.state!=='free',deskLock=facLock||!!L.desks;
+  const chips=(kind,list)=>list.map(x=>{const small=CLS[x.cls]<CLS[f.cls],pr=small||facLock?[]:probe(f,kind,x.id);
+    return `<button class="chip${p[kind]===x.id?' on':''}${pr.length?' clash':''}" data-set="${kind}" data-v="${x.id}" ${small||facLock?'disabled':''} title="${esc(small?'Too small for class '+f.cls:pr[0]||'Free')}" aria-pressed="${p[kind]===x.id}">${x.id}<small>${x.cls}</small></button>`}).join('');
+  const lockMsg=fz?(fz.ok?`Departed ${hhmm(fz.dep)}${fz.delay?', '+fz.delay+' min late':''}, ${fz.points} points.`:`Cancelled: ${esc(fz.issues[0]||'')}.`)
+    :L.state==='stand'?'Aircraft is on stand. You can only hold it (add delay).':L.desks?'Check-in has opened, so its desk count is fixed.':'';
+  $('editor').innerHTML=`<div class="ed-h"><b>${f.id}</b><span>${esc(f.dest)} · departs ${hhmm(f.dep)}${p.delay?' → '+hhmm(r.dep):''} · ${f.pax} pax · class ${f.cls}${f.high?' · high priority ★':''}${f.late?' · inbound late':''}</span></div>
+  ${lockMsg?`<div class="lock">${lockMsg}</div>`:''}
+  <div class="fld"><span class="l">Stand</span><div class="chips">${chips('stand',known.stands)}<em class="need">held ${hhmm(w.stand[0])} to ${hhmm(w.stand[1])}</em></div></div>
+  <div class="fld"><span class="l">Gate</span><div class="chips">${chips('gate',known.gates)}<em class="need">held ${hhmm(w.gate[0])} to ${hhmm(w.gate[1])}</em></div></div>
+  <div class="fld"><span class="l">Desks</span><div class="step"><button data-desk="-1" aria-label="Fewer desks" ${p.desks<=1||deskLock?'disabled':''}>−</button><b>${p.desks}</b><button data-desk="1" aria-label="More desks" ${p.desks>=R.maxDesks||deskLock?'disabled':''}>+</button><em>check-in ${hhmm(f.open)} to ${hhmm(r.ciEnd)}, closes ${hhmm(r.close)} · needs at least ${minDesks(known,f,p.delay)}</em></div></div>
+  <div class="fld"><span class="l">Delay</span><div class="step"><button data-delay="-5" ${p.delay-1<L.minDelay||fz?'disabled':''}>−5</button><button data-delay="-1" ${p.delay-1<L.minDelay||fz?'disabled':''}>−1</button><b>+${p.delay}</b><button data-delay="1" ${p.delay>=R.maxDelay||fz?'disabled':''}>+1</button><button data-delay="5" ${p.delay>=R.maxDelay||fz?'disabled':''}>+5</button><em>first ${R.grace} min free, then ${f.high?R.delayHigh:R.delayNormal} pt${f.high?'s':''} a minute${p.delay>R.grace?` · costing ${Core.delayCost(f,p.delay)}`:''}</em></div></div>
+  ${known.teams?`<div class="fld"><span class="l">Service</span><em class="need">ground team ${hhmm(r.dep-f.svc)} to ${hhmm(r.dep)} (${f.svc} min) · move it by changing the delay</em></div>`:''}
+  ${fz?'':`<ul class="issues">${r.issues.length?r.issues.map(i=>'<li>'+esc(i)+'</li>').join(''):`<li class="fine">Good to go, worth ${r.points} points.</li>`}</ul>`}`;
+}
+function chart(load,cap,peak,what){
+  const top=Math.max(cap+2,peak+1),y=v=>(60-v/top*56).toFixed(1);let d='M0 60',over='';
+  for(let m=T0;m<T1;m++){const v=load[m];d+=`L${m-T0} ${y(v)}L${m-T0+1} ${y(v)}`;if(v>cap)over+=`<rect x="${m-T0}" y="${y(v)}" width="1" height="${(y(cap)-y(v)).toFixed(1)}" fill="var(--bad)"/>`}
+  d+=`L${SPAN} 60Z`;
+  return `<div class="grp">${what} in use · limit ${cap}</div><div class="r"><div class="lab">peak <b style="color:${peak>cap?'var(--bad)':'inherit'}">${peak}</b></div><svg viewBox="0 0 ${SPAN} 60" preserveAspectRatio="none" role="img" aria-label="${what} in use over time, peak ${peak} of ${cap}"><path d="${d}" fill="var(--blk-ok)"/>${over}<line x1="0" x2="${SPAN}" y1="${y(cap)}" y2="${y(cap)}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/></svg></div>`;
+}
+function renderTL(){
+  const PL=result?run0.plan:P(),FR=run?run.frozen:result?run0.frozen:{};const row=(kind,x)=>{const blks=known.flights.filter(f=>PL[f.id][kind]===x.id).map(f=>{const w=ev.win[f.id][kind],r=ev.flights[f.id],K=kind[0].toUpperCase()+kind.slice(1)+' ',bad=r.issues.some(i=>i.startsWith(K)),fz=FR[f.id],L=lockOf(f.id);
+      return `<button class="blk${bad&&!fz?' bad':''}${f.id===sel?' sel':''}${fz?' gone':L.state!=='free'?' locked':''}" data-f="${f.id}" data-k="${kind}" style="left:${pc(w[0])};width:calc(${pc(w[1])} - ${pc(w[0])})" title="${f.id} ${hhmm(w[0])}–${hhmm(w[1])} · drag to move">${f.id}</button>`}).join('');
+    const shuts=(x.shuts||[]).map(c=>`<div class="shut hatch" title="Closed ${hhmm(c[0])}–${hhmm(c[1])}" style="left:${pc(c[0])};width:calc(${pc(c[1])} - ${pc(c[0])})"></div>`).join('');
+    return `<div class="r"><div class="lab"><b>${x.id}</b> ${x.cls}</div><div class="trk" data-row="${kind}" data-v="${x.id}"><div class="shut" style="left:0;width:${pc(x.from)}"></div><div class="shut" style="left:${pc(x.to)};right:0"></div>${shuts}${blks}</div></div>`};
+  let ax='';for(let m=T0;m<T1;m+=30)ax+=`<i style="left:${pc(m)}">${hhmm(m)}</i>`;
+  const axis=`<div class="r"><div></div><div class="axis">${ax}</div></div>`;
+  $('tl').innerHTML=`${axis}<div class="grp">Stands · held from 50 min before to 10 after</div>${known.stands.map(x=>row('stand',x)).join('')}<div style="height:10px"></div>${axis}<div class="grp">Gates · held from 35 min before to 10 after</div>${known.gates.map(x=>row('gate',x)).join('')}
+  ${chart(ev.load,known.desks,ev.peak,'Check-in desks')}${known.teams?chart(ev.teamLoad,known.teams,ev.teamPeak,'Ground service teams'):''}${axis}${run?`<div class="cursor" id="cur"></div>`:''}`;
+  placeCursor();
+}
+function placeCursor(){const cur=$('cur');if(cur&&run)cur.style.left=`calc(48px + (100% - 48px) * ${(run.c-T0)/SPAN})`}
+function renderLog(){
+  const items=run?run.log:result?result.log:[];
+  $('logp').hidden=!items.length;
+  $('log').innerHTML=items.slice().reverse().map(x=>`<li class="${x.k||''}"><b>${hhmm(x.t)}</b> ${esc(x.s)}</li>`).join('');
+}
+function renderBar(){
+  const b=$('alert');
+  if(!run){b.hidden=true;return}
+  b.hidden=false;
+  if(run.paused){const left=Math.max(0,Math.ceil((run.deadline-performance.now())/1000)),e=run.paused;
+    b.className='alert hot';
+    b.innerHTML=`<div class="a-t"><b>Disruption ${hhmm(e.at)}</b> ${esc(describe(e,sc))}</div><div class="a-c"><span class="secs" id="secs">${left} s</span><div class="bar"><i id="barfill" style="width:${left/decideSecs()*100}%"></i></div><button id="resume" class="go">Resume shift</button></div>`;
+  }else{b.className='alert';
+    b.innerHTML=`<div class="a-t"><b id="clock">${hhmm(Math.floor(run.c))}</b> Shift running. You can re-plan any flight that is not yet on stand. Disruptions pause the clock.</div><div class="a-c"><button id="fast">${run.speed>1?'Normal speed':'Fast forward ×4'}</button><button id="abandon">Abandon shift</button></div>`;}
+}
+function debrief(){
+  const r=result,m=medal(r.score),fl=known.flights;
+  const loss=fl.map(f=>{const z=run0.frozen[f.id],max=f.high?R.ptsHigh:R.ptsNormal;
+    return z.ok?{f,lost:max-z.points,why:z.delay?`held ${z.delay} min, ${z.delay-R.grace} past the 15 free${f.high?' (priority, double rate)':''}`:''}:{f,lost:max+R.failPenalty,why:'cancelled: '+(z.issues[0]||'')}}).filter(x=>x.lost>0).sort((a,b)=>b.lost-a.lost).slice(0,3);
+  const issues=fl.map(f=>run0.frozen[f.id]).filter(z=>!z.ok).flatMap(z=>z.issues);
+  const prioDelay=fl.filter(f=>f.high&&run0.frozen[f.id].ok).reduce((a,f)=>a+Math.max(0,run0.frozen[f.id].delay-R.grace),0);
+  const tip=issues.some(i=>/clashes/.test(i))?'Two flights ended up on the same stand or gate. After each disruption, look for red blocks on the timeline before pressing Resume.'
+    :issues.some(i=>/closed/.test(i))?'A flight was left on a stand or gate after it was closed. When a closure is announced, move every flight whose bar crosses the hatched area.'
+    :issues.some(i=>/overruns|Desks over/.test(i))?'Check-in ran out of time or desks. Add desks before check-in opens: once it opens the number is fixed.'
+    :issues.length?'Read the reason on each cancelled flight; a delay always costs less than a cancellation.'
+    :prioDelay?`Priority flights were held ${prioDelay} chargeable minutes in total at double rate. Where you can, hold a normal flight instead, or keep holds within the 15 free minutes.`
+    :r.bonus?'Clean shift. To score more, cut delay minutes; spare desks already earned a bonus.':'Clean shift. Trim desks on early flights to free capacity at the peak and earn the spare-desk bonus.';
+  let line;
+  if(!lvl)line=m?`${MED[m]} on the brief. Shift 1 is open.`:`The house controller scored ${num(tg.house)}. Beat it for bronze.`;
+  else if(m>=2)line=`${MED[m]}. Shift ${lvl} cleared${m<3?`, ${num(tg.gold-r.score)} short of gold`:''}. Shift ${lvl+1} adds: ${Core.twist(lvl+1)}.`;
+  else line=`${m?'Bronze: you beat the house controller, but ':'Not cleared: '}silver is ${num(tg.silver-r.score)} points away.`;
+  return `<div class="panel result"><h2>Shift debrief</h2><div class="big">${num(r.score)} points</div><div>${line}</div>
+  <div>${r.departed} of ${r.total} flights left, ${r.onTime} on time, ${r.total-r.departed} cancelled, ${r.delayMin} minutes of delay${r.bonus?`, spare-desk bonus ${r.bonus}`:''}. The house controller, facing the same disruptions, scored ${num(tg.house)}.</div>
+  ${loss.length?`<div><b>Where the points went</b><ul class="dl">${loss.map(x=>`<li><b>${x.f.id}</b> −${x.lost}: ${esc(x.why)}</li>`).join('')}</ul></div>`:''}
+  <div><b>Next time</b> ${esc(tip)}</div>
+  <div class="ctl">${lvl&&m>=2?`<button id="next" class="go">Start shift ${lvl+1}</button>`:''}<button id="replan">Replan this shift</button>${lvl?'<button id="reroll2">New wave</button>':''}</div></div>`;
+}
+let run0=null;
+function renderResult(){$('result').innerHTML=result&&tg?debrief():''}
+function render(){
+  if(drag){dirty=true;return}
+  known=run?scenarioAt(sc,run.c):result?scenarioAt(sc,Infinity):scenarioAt(sc,-Infinity);
+  ev=evaluate(known,result?run0.plan:P());
+  renderScore();renderBoard();renderEditor();renderTL();renderResult();renderLog();renderBar();
+  $('run').hidden=!!run;$('run').disabled=!tg;$('scn').disabled=!!run;
+  for(const id of ['clear','house','reroll'])$(id).disabled=!!run;
+}
+
+// The live shift.
+function startRun(){
+  if(run||!tg)return;
+  run={c:T0,plan:clone(plan),next:0,paused:null,deadline:0,frozen:{},log:[{t:T0,s:'Shift started.'}],speed:1,last:performance.now()};
+  result=null;render();requestAnimationFrame(tick);
+}
+function fire(e){
+  run.c=e.at;run.paused=e;run.deadline=performance.now()+decideSecs()*1000;run.next++;
+  run.log.push({t:e.at,s:describe(e,sc),k:'ev'});
+  if(e.flight)sel=e.flight;
+  render();
+}
+function resume(timedOut){if(!run||!run.paused)return;if(timedOut)run.log.push({t:run.c,s:'Decision time ran out. The shift carried on.',k:'warn'});run.paused=null;run.last=performance.now();render()}
+function freeze(){
+  let changed=false;const e=evaluate(scenarioAt(sc,run.c),run.plan);
+  for(const f of sc.flights){const r=e.flights[f.id];if(run.frozen[f.id]||run.c<r.dep)continue;
+    run.frozen[f.id]={ok:r.ok,points:r.points,issues:r.issues.slice(),delay:r.delay,dep:r.dep};changed=true;
+    run.log.push(r.ok?{t:r.dep,s:`${f.id} departed${r.delay?' '+r.delay+' min late':' on time'}.`}:{t:r.dep,s:`${f.id} cancelled: ${r.issues[0]}.`,k:'bad'});}
+  return changed;
+}
+function finish(){
+  const fin=scenarioAt(sc,Infinity),e=evaluate(fin,run.plan),z=sc.flights.map(f=>run.frozen[f.id]||{ok:e.flights[f.id].ok,points:e.flights[f.id].points,issues:e.flights[f.id].issues,delay:e.flights[f.id].delay});
+  const all=z.every(x=>x.ok),bonus=all?Math.max(0,fin.desks-e.peak)*R.deskBonus:0;
+  sc.flights.forEach((f,i)=>run.frozen[f.id]=z[i]);
+  result={score:z.reduce((a,x)=>a+x.points,0)+bonus,departed:z.filter(x=>x.ok).length,onTime:z.filter(x=>x.ok&&x.delay<=R.grace).length,total:z.length,
+    delayMin:z.reduce((a,x)=>a+(x.ok?x.delay:0),0),bonus,log:run.log.concat([{t:Math.floor(run.c),s:'Shift complete.'}])};
+  run0=run;run=null;
+  const m=medal(result.score);
+  if(lvl&&m>(medals[lvl]||0)){medals[lvl]=m;store.set('mw-medals',medals)}
+  if(lvl&&m>=2&&lvl>progress){progress=lvl;store.set('mw-progress',progress)}
+  options();render();$('result').scrollIntoView({block:'nearest',behavior:'smooth'});
+}
+function tick(ts){
+  if(!run)return;
+  if(run.paused){
+    const left=Math.max(0,(run.deadline-ts)/1000),s=$('secs'),bf=$('barfill');
+    if(s)s.textContent=Math.ceil(left)+' s';if(bf)bf.style.width=(left/decideSecs()*100)+'%';
+    if(left<=0)resume(true);
+  }else{
+    const dt=Math.min(100,ts-run.last);run.c=Math.min(T1,run.c+dt/MS_PER_MIN*run.speed);
+    const e=sc.events[run.next];
+    if(e&&run.c>=e.at){fire(e)}
+    else{
+      const changed=freeze();
+      if(run.c>=T1||Object.keys(run.frozen).length===sc.flights.length){finish();return}
+      if(changed)render();
+      else{const k=Math.floor(run.c);if(k!==run.k){run.k=k;known=scenarioAt(sc,run.c);ev=evaluate(known,run.plan);if(!drag){renderBoard();renderScore()}const cl=$('clock');if(cl)cl.textContent=hhmm(k)}}
+      placeCursor();
+    }
+  }
+  run&&(run.last=ts);requestAnimationFrame(tick);
+}
+
+// Drag a bar sideways to change the delay, or onto another row of the same kind to move it.
+$('tl').addEventListener('pointerdown',e=>{
+  const b=e.target.closest('.blk');if(!b||e.button!==0||result)return;
+  const trk=b.parentElement;
+  drag={b,id:b.dataset.f,kind:b.dataset.k,x:e.clientX,y:e.clientY,moved:false,ppm:trk.clientWidth/SPAN,base:P()[b.dataset.f].delay};
+  b.setPointerCapture(e.pointerId);
+});
+$('tl').addEventListener('pointermove',e=>{
+  if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+  if(!drag.moved&&Math.abs(dx)+Math.abs(dy)<5)return;
+  drag.moved=true;drag.b.classList.add('dragging');
+  const L=lockOf(drag.id),d=Math.max(L.minDelay,Math.min(R.maxDelay,drag.base+Math.round(dx/drag.ppm)));
+  drag.b.style.transform=`translate(${(d-drag.base)*drag.ppm}px,${L.state==='free'?dy:0}px)`;
+  drag.b.textContent=`${drag.id} +${d}`;
+  document.querySelectorAll('.trk.target').forEach(t=>t.classList.remove('target'));
+  const t=document.elementsFromPoint(e.clientX,e.clientY).find(el=>el.classList&&el.classList.contains('trk')&&el.dataset.row===drag.kind);
+  if(t&&L.state==='free')t.classList.add('target');
+});
+function endDrag(e,cancel){
+  if(!drag)return;const g=drag;drag=null;
+  document.querySelectorAll('.trk.target').forEach(t=>t.classList.remove('target'));
+  if(!g.moved){dirty=false;return}
+  noClick=true;setTimeout(()=>noClick=false,0);
+  const patch={};
+  if(!cancel){patch.delay=g.base+Math.round((e.clientX-g.x)/g.ppm);
+    const t=document.elementsFromPoint(e.clientX,e.clientY).find(el=>el.classList&&el.classList.contains('trk')&&el.dataset.row===g.kind);
+    if(t){const fac=(g.kind==='stand'?sc.stands:sc.gates).find(x=>x.id===t.dataset.v),f=known.flights.find(x=>x.id===g.id);if(CLS[fac.cls]>=CLS[f.cls])patch[g.kind]=fac.id}}
+  sel=g.id;dirty=false;set(g.id,patch);
+}
+$('tl').addEventListener('pointerup',e=>endDrag(e,false));
+$('tl').addEventListener('pointercancel',e=>endDrag(e,true));
+
+document.addEventListener('click',e=>{
+  if(noClick)return;const b=e.target.closest('button,[data-row]');if(!b)return;const d=b.dataset,p=P()[sel];
+  if(result&&(d.set||d.desk||d.delay||d.row))return;
+  if(d.f){sel=d.f;render()}
+  else if(d.set)set(sel,{[d.set]:p[d.set]===d.v?null:d.v});
+  else if(d.desk)set(sel,{desks:p.desks+ +d.desk});
+  else if(d.delay)set(sel,{delay:p.delay+ +d.delay});
+  else if(d.row){const f=known.flights.find(x=>x.id===sel),fac=(d.row==='stand'?sc.stands:sc.gates).find(x=>x.id===d.v);if(CLS[fac.cls]>=CLS[f.cls])set(sel,{[d.row]:d.v})}
+  else if(b.id==='clear'){plan=blank();store.set('mw-plan-'+sc.id,plan);result=null;render()}
+  else if(b.id==='house'){plan=housePlan(scenarioAt(sc,-Infinity));store.set('mw-plan-'+sc.id,plan);result=null;render()}
+  else if(b.id==='reroll'||b.id==='reroll2'){rolls[lvl]=(rolls[lvl]||0)+1;store.set('mw-rolls',rolls);load(lvl)}
+  else if(b.id==='next')load(lvl+1);
+  else if(b.id==='replan'){result=null;render()}
+  else if(b.id==='run')startRun();
+  else if(b.id==='resume')resume(false);
+  else if(b.id==='fast'){run.speed=run.speed>1?1:4;renderBar()}
+  else if(b.id==='abandon'){run=null;result=null;render()}
+});
+$('scn').addEventListener('change',e=>load(e.target.value));
+$('rules').innerHTML=[`Aircraft classes run S, M, L. A bigger stand or gate takes a smaller aircraft, never the reverse.`,
+`A stand is held from ${R.standBefore} minutes before departure to ${R.after} after. A gate from ${R.gateBefore} before to ${R.after} after. No overlaps, and nothing while a facility is shut (grey, or hatched when closed by a disruption).`,
+`Check-in opens 60 minutes before the scheduled time and closes ${R.closeBefore} before departure. Each desk clears 4 passengers a minute and is released once the flight is processed.`,
+`From shift 3, every flight needs a ground service team for its service time, finishing at departure. Only so many teams can work at once.`,
+`Once you start the shift the clock runs. Disruptions are announced as they happen: a late inbound aircraft, a stand or gate going unserviceable, or extra passengers. Each one pauses the clock while you re-plan; when the timer runs out the shift carries on.`,
+`During the shift you can change any flight not yet on stand. Once its aircraft is on stand you can only hold it with more delay, and once check-in opens its desk count is fixed. A flight's result is fixed when it departs.`,
+`A flight that leaves scores ${R.ptsNormal} points, ${R.ptsHigh} if high priority (★). As in airline on-time figures, up to ${R.grace} minutes late still counts as on time and costs nothing. After that, each minute costs ${R.delayNormal} point, ${R.delayHigh} for high priority, up to ${R.maxDelay} minutes. Delay caused by a late inbound aircraft is not charged.`,
+`A flight with any rule broken at departure is cancelled: minus ${R.failPenalty}. If every flight leaves, each desk you never needed at peak earns ${R.deskBonus}.`,
+`Bronze beats the house controller, which plans the same way you do and re-plans at every disruption. Gold is the best plan a solver found knowing every disruption in advance. Silver is halfway and clears the shift.`,
+`Drag a bar on the timeline sideways to change a flight's delay, or up and down onto another stand or gate. You can also select a flight and use the buttons.`].map(x=>'<li>'+x+'</li>').join('');
+load(Math.min(progress+1,store.get('mw-last')||0)||0);
+})();
+</script>
