@@ -20,9 +20,9 @@ Every wave has three targets, shown in the score strip.
 | --- | --- |
 | Bronze | Score more than the house controller |
 | Silver | Score at least halfway between the house planner and gold. **Silver clears the shift and unlocks the next one** |
-| Gold | Match the best plan the game's own solver found, knowing every disruption in advance |
+| Gold | Match the game's own solver, which plays the shift like you: it plans carefully, then re-plans at each disruption without knowing what comes next |
 
-The gold score comes from a search the game runs when a wave first loads. Because it knows what will go wrong, gold is hard to reach. It is not always the best possible plan, so you may occasionally beat it.
+Silver is always at least 40 points above the house controller, unless gold itself is closer. The game also skips any wave where even the solver cannot beat the house by 20 points, so every shift you are given has room to do better. Gold is not always the best possible plan, so you may beat it.
 
 ## Getting stuck
 

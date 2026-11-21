@@ -23,7 +23,7 @@ A flight that breaks any rule at the moment it departs is cancelled.
 | --- | --- |
 | Disruptions | Announced during the shift. Each one stops the clock for a set time (60 seconds on early shifts, down to 25 on the hardest) |
 | Late inbound aircraft | The flight's departure time moves later. This delay is not charged to you |
-| Stand or gate out of use | Any flight already on it when it is announced may stay. Every other flight must be moved off it |
+| Stand or gate out of use | Any flight whose aircraft is already on stand when it is announced keeps its stand and gate. Every other flight must be moved off it |
 | Extra passengers | Announced before check-in opens, so you can add desks in time |
 | What you can change | Anything on a flight whose aircraft is not yet on stand. Desks are fixed once check-in opens. An aircraft on stand can only be held with more delay |
 
@@ -38,6 +38,7 @@ A flight that breaks any rule at the moment it departs is cancelled.
 | Each minute after that, high-priority flight | −2 |
 | A flight is cancelled | −200 |
 | Every flight leaves, for each desk you never needed at the busiest moment | +10 |
+| Each use of Suggest a fix | −10 |
 
 A delayed flight never scores below zero, so a delay is always better than a cancellation.
 

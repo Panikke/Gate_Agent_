@@ -19,9 +19,13 @@ Open the game and pick **Training day (the brief)** from the **Shift** menu at t
 2. **Read the red lines** at the bottom of the editor. They say exactly what is wrong, for example "Stand S2 clashes with AL305".
 3. **Pick a stand.** Click one of the stand buttons. Grey buttons are too small for this aircraft. Buttons with a red dashed edge would clash with another flight.
 4. **Pick a gate** the same way.
-5. **Set the desks** with the **−** and **+** buttons. The note beside them tells you when check-in would finish and the fewest desks that would get everyone through.
+5. **Desks are set for you.** With **Auto** on (the default), each flight gets the fewest desks that clear its passengers in time, and the number updates when you change its delay. Press **−** or **+** to set it yourself; press **Auto** again to hand it back.
 6. **Add delay if you must** with **+1** or **+5**. Delay moves the flight later, which frees up the stand and gate before it, but costs points every minute.
 7. When the editor says **Good to go**, the flight is fixed. Move to the next red one.
+
+Stuck on a flight? **Suggest a fix** re-plans just that flight around everyone else. Each suggestion costs 10 points, so use it to get unstuck, not for every flight.
+
+Made a mistake? **Undo** (or **Ctrl + Z**, **Cmd + Z** on a Mac) steps back one change at a time.
 
 You can also click straight onto a row of the timeline to put the selected flight on that stand or gate.
 
@@ -52,6 +56,8 @@ Press **Replan this shift** in the debrief to go back to your plan and try the s
 | --- | --- |
 | **Show house plan** | Training day only. Fills in the house planner's plan so you can see what you are trying to beat |
 | **New wave** | Deals a different set of flights at the same shift. Use it if you are stuck or want fresh practice |
+| **Undo** | Steps back one change. Also **Ctrl + Z** (Windows) or **Cmd + Z** (Mac) |
+| **Suggest a fix** | Shown on a flight with a problem. Re-plans that flight only. Costs 10 points each |
 | **Clear plan** | Empties every setting on this wave so you can start again |
 | **Abandon shift** | During a shift, stops it and takes you back to planning |
 | **Rules and scoring** | Opens the full rules at the bottom of the page |

@@ -95,7 +95,7 @@ function describe(e, sc) {
   const f = e.flight && sc.flights.find(x => x.id === e.flight);
   if (e.kind === 'late') return `${e.flight}'s inbound aircraft is running ${e.mins} min late. It now departs ${hhmm(f.dep + e.mins)} at the earliest.`;
   if (e.kind === 'surge') return `${e.flight} has ${e.extra} extra passengers from a cancelled flight elsewhere: ${f.pax + e.extra} to check in.`;
-  return `${e.fac[0] === 'S' ? 'Stand' : 'Gate'} ${e.fac} is unserviceable from ${hhmm(e.from)} to ${hhmm(e.to)}. Flights already on it can stay.`;
+  return `${e.fac[0] === 'S' ? 'Stand' : 'Gate'} ${e.fac} is unserviceable from ${hhmm(e.from)} to ${hhmm(e.to)}. Flights whose aircraft are already on stand are not affected.`;
 }
 
 // The scenario as known at minute `upto` (-Infinity = before the shift, Infinity = everything).
@@ -108,7 +108,8 @@ function scenarioAt(sc, upto) {
   }
   return s;
 }
-const blockedBy = (fac, w) => (fac.shuts || []).find(c => w[0] < c[1] && c[0] < w[1] && w[0] >= c[2]);
+// A closure spares any flight whose aircraft was already on stand when it was announced (standStart before c[2]).
+const blockedBy = (fac, w, standStart) => (fac.shuts || []).find(c => w[0] < c[1] && c[0] < w[1] && (standStart === undefined ? w[0] : standStart) >= c[2]);
 
 // Industry practice counts a departure within 15 minutes as on time, so the first 15 minutes of delay are free.
 const delayCost = (f, delay) => Math.max(0, delay - RULES.grace) * (f.high ? RULES.delayHigh : RULES.delayNormal);
@@ -122,8 +123,10 @@ function evaluate(sc, plan) {
     const ciEnd = desks ? f.open + Math.ceil(f.pax / (sc.rate * desks)) : Infinity, close = dep - RULES.closeBefore;
     win[f.id] = { stand: [dep - RULES.standBefore, dep + RULES.after], gate: [dep - RULES.gateBefore, dep + RULES.after] };
     res[f.id] = { dep, delay, close, ciEnd, desks, stand: p.stand || null, gate: p.gate || null, issues: [] };
-    if (desks) for (let m = f.open; m < Math.min(ciEnd, close); m++) load[m] += desks;
-    if (sc.teams) for (let m = dep - f.svc; m < dep; m++) teamLoad[m]++;
+    // A flight with no stand or gate is not operating, so it takes no desks or ground team.
+    const operating = !!(p.stand && p.gate);
+    if (desks && operating) for (let m = f.open; m < Math.min(ciEnd, close); m++) load[m] += desks;
+    if (sc.teams && operating) for (let m = dep - f.svc; m < dep; m++) teamLoad[m]++;
   }
   const overMin = m => load[m] > sc.desks;
   for (const f of sc.flights) {
@@ -135,7 +138,7 @@ function evaluate(sc, plan) {
       if (CLS[fac.cls] < CLS[f.cls]) r.issues.push(Kind + ' ' + id + ' is too small (' + fac.cls + ' < ' + f.cls + ')');
       if (w[0] < fac.from) r.issues.push(Kind + ' ' + id + ' not open until ' + hhmm(fac.from) + ', needed ' + hhmm(w[0]));
       if (w[1] > fac.to) r.issues.push(Kind + ' ' + id + ' closes at ' + hhmm(fac.to));
-      const c = blockedBy(fac, w); if (c) r.issues.push(Kind + ' ' + id + ' closed ' + hhmm(c[0]) + ' to ' + hhmm(c[1]));
+      const c = blockedBy(fac, w, win[f.id].stand[0]); if (c) r.issues.push(Kind + ' ' + id + ' closed ' + hhmm(c[0]) + ' to ' + hhmm(c[1]));
       for (const g of sc.flights) if (g.id !== f.id && res[g.id][kind] === id) {
         const v = win[g.id][kind]; if (w[0] < v[1] && v[0] < w[1]) r.issues.push(Kind + ' ' + id + ' clashes with ' + g.id);
       }
@@ -164,11 +167,12 @@ function housePlan(sc, order, deskPref, fixed) {
     plan[f.id] = Object.assign({}, p);
     if (p.stand) used.stand.push({ id: p.stand, w: [dep - RULES.standBefore, dep + RULES.after] });
     if (p.gate) used.gate.push({ id: p.gate, w: [dep - RULES.gateBefore, dep + RULES.after] });
+    if (!p.stand || !p.gate) continue;
     for (let m = f.open; m < f.open + Math.ceil(f.pax / (sc.rate * (p.desks || 1))); m++) load[m] += p.desks || 0;
     for (let m = dep - f.svc; m < dep; m++) team[m]++; }
   const free = (kind, fac, f, dep) => {
     const w = [dep - (kind === 'stand' ? RULES.standBefore : RULES.gateBefore), dep + RULES.after];
-    return CLS[fac.cls] >= CLS[f.cls] && w[0] >= fac.from && w[1] <= fac.to && !blockedBy(fac, w) &&
+    return CLS[fac.cls] >= CLS[f.cls] && w[0] >= fac.from && w[1] <= fac.to && !blockedBy(fac, w, dep - RULES.standBefore) &&
       !used[kind].some(u => u.id === fac.id && w[0] < u.w[1] && u.w[0] < w[1]) && w;
   };
   for (const f of order || [...sc.flights].sort((a, b) => a.dep - b.dep)) {
@@ -198,7 +202,7 @@ function assign(sc, delays, desks) {
     const lastEnd = {}; list.forEach(x => lastEnd[x.id] = -1);
     const fl = sc.flights.map(f => ({ f, a: f.dep + delays[f.id] - before, b: f.dep + delays[f.id] + RULES.after })).sort((x, y) => x.a - y.a);
     for (const { f, a, b } of fl) {
-      const ok = list.filter(x => CLS[x.cls] >= CLS[f.cls] && a >= x.from && b <= x.to && lastEnd[x.id] <= a && !blockedBy(x, [a, b]))
+      const ok = list.filter(x => CLS[x.cls] >= CLS[f.cls] && a >= x.from && b <= x.to && lastEnd[x.id] <= a && !blockedBy(x, [a, b], f.dep + delays[f.id] - RULES.standBefore))
         .sort((x, y) => CLS[x.cls] - CLS[y.cls] || lastEnd[y.id] - lastEnd[x.id]);
       if (ok[0]) { plan[f.id][kind] = ok[0].id; lastEnd[ok[0].id] = b; }
     }
@@ -206,14 +210,15 @@ function assign(sc, delays, desks) {
   return plan;
 }
 function solve(sc, iters) {
-  let s = 12345, best = -1e9; const rnd = () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296;
+  let s = 12345, best = -1e9, bestPlan = null; const rnd = () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296;
   // 1) reorder the house planner's queue (who gets first pick) under three desk habits
   for (const pref of [[2, 3, 1, 4, 5, 6], [1, 2, 3, 4, 5, 6], [3, 2, 4, 1, 5, 6]]) {
-    let order = [...sc.flights].sort((a, b) => a.dep - b.dep), cur = evaluate(sc, housePlan(sc, order, pref)).score; best = Math.max(best, cur);
+    let order = [...sc.flights].sort((a, b) => a.dep - b.dep), cp = housePlan(sc, order, pref), cur = evaluate(sc, cp).score;
+    if (cur > best) { best = cur; bestPlan = cp; }
     for (let i = 0; i < iters / 10; i++) {
       const a = Math.floor(rnd() * order.length), b = Math.max(0, Math.min(order.length - 1, a + Math.round((rnd() - 0.5) * 6))), o = order.slice();
-      [o[a], o[b]] = [o[b], o[a]]; const v = evaluate(sc, housePlan(sc, o, pref)).score;
-      if (v >= cur) { cur = v; order = o; best = Math.max(best, v); }
+      [o[a], o[b]] = [o[b], o[a]]; const np = housePlan(sc, o, pref), v = evaluate(sc, np).score;
+      if (v >= cur) { cur = v; order = o; if (v > best) { best = v; bestPlan = np; } }
     }
   }
   // 2) anneal delays and desk counts directly
@@ -223,9 +228,27 @@ function solve(sc, iters) {
     const f = sc.flights[Math.floor(rnd() * sc.flights.length)], od = delays[f.id], ok = desks[f.id];
     if (rnd() < 0.6) delays[f.id] = Math.max(0, Math.min(RULES.maxDelay, od + Math.round((rnd() - 0.5) * 12)));
     else desks[f.id] = Math.max(1, Math.min(RULES.maxDesks, ok + (rnd() < 0.5 ? -1 : 1)));
-    const v = evaluate(sc, assign(sc, delays, desks)).score, T = 60 * (1 - i / iters) + 1;
-    if (v >= cur || rnd() < Math.exp((v - cur) / T)) { cur = v; if (cur > best) best = cur; }
+    const ap = assign(sc, delays, desks), v = evaluate(sc, ap).score, T = 60 * (1 - i / iters) + 1;
+    if (v >= cur || rnd() < Math.exp((v - cur) / T)) { cur = v; if (cur > best) { best = cur; bestPlan = ap; } }
     else { delays[f.id] = od; desks[f.id] = ok; }
+  }
+  return { score: best, plan: bestPlan };
+}
+
+// Re-plan only the flights a planner may still change, searching over who gets first pick.
+function replan(s, plan, c, iters, seed) {
+  let x = seed; const rnd = () => (x = (x * 1664525 + 1013904223) >>> 0) / 4294967296, fixed = {};
+  for (const f of s.flights) { const p = plan[f.id], L = lockAt(f, p, c);
+    fixed[f.id] = L.state === 'free' ? { minDelay: L.minDelay, desks: L.desks } : { all: true, plan: p }; }
+  let best = plan, bestV = evaluate(s, plan).score;
+  for (const pref of [[2, 3, 1, 4, 5, 6], [1, 2, 3, 4, 5, 6]]) {
+    let order = [...s.flights].sort((a, b) => a.dep - b.dep), cp = housePlan(s, order, pref, fixed), cur = evaluate(s, cp).score;
+    if (cur > bestV) { bestV = cur; best = cp; }
+    for (let i = 0; i < iters; i++) {
+      const a = Math.floor(rnd() * order.length), b = Math.max(0, Math.min(order.length - 1, a + Math.round((rnd() - 0.5) * 6))), o = order.slice();
+      [o[a], o[b]] = [o[b], o[a]]; const np = housePlan(s, o, pref, fixed), v = evaluate(s, np).score;
+      if (v >= cur) { cur = v; order = o; if (v > bestV) { bestV = v; best = np; } }
+    }
   }
   return best;
 }
@@ -239,6 +262,19 @@ function lockAt(f, p, c) {
 }
 
 // The house controller plans before the shift, then at each disruption re-plans every flight it may still change.
+// The live solver: a strong plan made before the shift, then a careful re-plan at each disruption,
+// knowing no more than the player does at that moment. Its score is gold.
+function liveSolve(sc, iters) {
+  const base = scenarioAt(sc, -Infinity), fin = scenarioAt(sc, Infinity);
+  let best = null, bestV = -1e9;
+  // Two starting plans: the solver's tightest, and the house planner's, which leaves more slack for surprises.
+  for (const start of [solve(base, iters).plan, housePlan(base)]) {
+    let plan = start, k = 1;
+    for (const e of sc.events || []) plan = replan(scenarioAt(sc, e.at), plan, e.at, Math.round(iters / 10), 777 + k++);
+    const v = evaluate(fin, plan).score; if (v > bestV) { bestV = v; best = plan; }
+  }
+  return best;
+}
 function liveHouse(sc) {
   let plan = housePlan(scenarioAt(sc, -Infinity));
   for (const e of sc.events || []) {
@@ -250,12 +286,13 @@ function liveHouse(sc) {
   return plan;
 }
 
-// Targets: bronze beats the live house controller; gold is the solver's best with hindsight of every
-// disruption; silver is halfway and clears the shift.
+// Targets: bronze beats the live house controller. Gold is the live solver, which learns of each
+// disruption only when it is announced, as the player does. Silver clears the shift: halfway to gold,
+// but never less than 40 points above the house unless gold itself is closer.
 function targets(sc, iters) {
   const fin = scenarioAt(sc, Infinity), house = evaluate(fin, liveHouse(sc)).score;
-  const gold = Math.max(house, solve(fin, iters || 4000));
-  return { house, silver: Math.round((house + gold) / 2), gold };
+  const gold = Math.max(house, evaluate(fin, liveSolve(sc, iters || 4000)).score), gap = gold - house;
+  return { house, silver: house + Math.max(Math.round(gap / 2), Math.min(gap, 40)), gold };
 }
 
 const Core = { CLS, RULES, TRAINING, t, hhmm, shift, twist, evaluate, housePlan, minDesks, delayCost, targets, scenarioAt, describe, lockAt, liveHouse };

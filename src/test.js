@@ -51,4 +51,12 @@ ok('a closure spares a flight already on the stand when it is announced', () => 
 ok('the live house controller never scores above gold', () => {
   for (const lv of [2, 5, 8]) { const t = C.targets(C.shift(lv, 1), 1500); assert(t.gold >= t.house); }
 });
+ok('a flight with no stand or gate takes no desks or ground team', () => {
+  const sc = C.shift(4, 0), plan = C.housePlan(sc), f = sc.flights[3], before = C.evaluate(sc, plan).peak;
+  plan[f.id] = { stand: null, gate: null, delay: 0, desks: 6 };
+  assert(C.evaluate(sc, plan).peak <= before);
+});
+ok('silver is never below the house and never above gold', () => {
+  for (const lv of [1, 4, 9]) { const t = C.targets(C.shift(lv, 0), 1500); assert(t.house <= t.silver && t.silver <= t.gold); }
+});
 console.log(`\n${n} checks passed`);
