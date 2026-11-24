@@ -42,7 +42,7 @@ function shift(n, roll) {
   const late = pick(facs.slice(0, 3).concat(facs.slice(5, 7)));
   late.from = t('07:00') + ri(4, 9) * 10; sc.notes.push(late.id + ' out of use until ' + hhmm(late.from) + '.');
   sc.notes.push(sc.desks + ' check-in desks staffed.');
-  if (sc.teams) sc.notes.push(sc.teams + ' ground service teams: each flight needs one for its service time, finishing at departure.');
+  if (sc.teams) sc.notes.push('Only ' + sc.teams + ' ground teams (fuel, catering, cleaning, bags). Every flight needs one for its last 12 to 20 minutes before departure, so no more than ' + sc.teams + ' flights can be in that final stretch at once. See the Team lanes on the timeline.');
   for (let i = 0, used = [late.id]; i < (n >= 4 ? (x >= 3 ? 2 : 1) : 0); i++) {
     let f; do f = pick(facs); while (used.includes(f.id)); used.push(f.id);
     const a = t('08:10') + ri(0, 9) * 10; f.shuts = [[a, a + ri(4, 6) * 10, -1e9]];
@@ -146,7 +146,9 @@ function evaluate(sc, plan) {
     if (!r.desks) r.issues.push('No check-in desks');
     else if (r.ciEnd > r.close) r.issues.push('Check-in overruns close by ' + (r.ciEnd - r.close) + ' min');
     else { for (let m = f.open; m < r.ciEnd; m++) if (overMin(m)) { r.issues.push('Desks over capacity at ' + hhmm(m)); break; } }
-    if (sc.teams) for (let m = r.dep - f.svc; m < r.dep; m++) if (teamLoad[m] > sc.teams) { r.issues.push('Ground teams over capacity at ' + hhmm(m)); break; }
+    if (sc.teams && r.stand && r.gate) for (let m = r.dep - f.svc; m < r.dep; m++) if (teamLoad[m] > sc.teams) {
+      const busy = sc.flights.filter(g => g.id !== f.id && res[g.id].stand && res[g.id].gate && m >= res[g.id].dep - g.svc && m < res[g.id].dep).map(g => g.id);
+      r.issues.push(`At ${hhmm(m)}, ${busy.length + 1} flights need a ground team but only ${sc.teams} exist (also ${busy.join(', ')})`); break; }
     r.ok = r.issues.length === 0;
     r.points = r.ok ? Math.max(0, (f.high ? RULES.ptsHigh : RULES.ptsNormal) - delayCost(f, r.delay)) : -RULES.failPenalty;
   }

@@ -11,7 +11,8 @@ Open the game and pick **Training day (the brief)** from the **Shift** menu at t
 | Departures board | Left, dark panel | Every flight, its time, stand, gate and status. Red status means a problem |
 | Flight editor | Right, top | The settings for the flight you have selected |
 | Apron and gates | Right, below the editor | A timeline of every stand and gate, with each flight as a block. Red blocks clash |
-| Usage charts | Bottom of the timeline | How many check-in desks (and, from shift 3, ground teams) are busy at each moment. Red means over the limit |
+| Desk chart | Below the gates | How many check-in desks are busy at each moment. Red means over the limit |
+| Ground teams | Bottom of the timeline, from shift 3 | One row per team, showing which flight each team is turning round. A flight no team can take drops into a red **No team** row: delay it, or another flight near it, until it fits |
 
 ## Fixing a flight, step by step
 

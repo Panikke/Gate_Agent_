@@ -12,7 +12,7 @@
 | Check-in | Opens 60 minutes before the scheduled time and closes 10 minutes before departure |
 | Desk speed | Each desk handles 4 passengers a minute. Desks are freed as soon as a flight's passengers are all through |
 | Desk limit | The number of desks staffed is shown in the notices. Using more than that at once breaks the plan |
-| Ground teams | From shift 3, each flight needs a ground service team for its service time, ending at departure. Only so many teams work at once |
+| Ground teams | From shift 3. Ground teams turn the aircraft round: fuel, catering, cleaning, bags. Each flight needs one team for its last 12 to 20 minutes before departure (its Service time). There are 3 teams, so no more than 3 flights can be in that final stretch at once. Delaying a flight moves its service later |
 | Delay | Any flight can be delayed by up to 60 minutes |
 
 A flight that breaks any rule at the moment it departs is cancelled.
