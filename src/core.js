@@ -266,36 +266,41 @@ function lockAt(f, p, c) {
 // The house controller plans before the shift, then at each disruption re-plans every flight it may still change.
 // The live solver: a strong plan made before the shift, then a careful re-plan at each disruption,
 // knowing no more than the player does at that moment. Its score is gold.
-function liveSolve(sc, iters) {
-  const base = scenarioAt(sc, -Infinity), fin = scenarioAt(sc, Infinity);
-  let best = null, bestV = -1e9;
-  // Two starting plans: the solver's tightest, and the house planner's, which leaves more slack for surprises.
-  for (const start of [solve(base, iters).plan, housePlan(base)]) {
-    let plan = start, k = 1;
-    for (const e of sc.events || []) plan = replan(scenarioAt(sc, e.at), plan, e.at, Math.round(iters / 10), 777 + k++);
-    const v = evaluate(fin, plan).score; if (v > bestV) { bestV = v; best = plan; }
-  }
-  return best;
-}
-function liveHouse(sc) {
-  let plan = housePlan(scenarioAt(sc, -Infinity));
+// Play a shift live from a starting plan, re-planning at each disruption with what is known then.
+// Returns the final plan and the plan after each step, so a debrief can show what changed and when.
+function liveRun(sc, start, step) {
+  let plan = start; const steps = [{ at: null, plan: start }];
   for (const e of sc.events || []) {
     const s = scenarioAt(sc, e.at), fixed = {};
     for (const f of s.flights) { const p = plan[f.id], L = lockAt(f, p, e.at);
       fixed[f.id] = L.state === 'free' ? { minDelay: L.minDelay, desks: L.desks } : { all: true, plan: p }; }
-    plan = housePlan(s, null, null, fixed);
+    plan = step(s, plan, e, fixed); steps.push({ at: e.at, event: e, plan });
   }
-  return plan;
+  return { plan, steps, score: evaluate(scenarioAt(sc, Infinity), plan).score };
 }
+// The live solver: a strong plan made before the shift, then a careful re-plan at each disruption,
+// knowing no more than the player does at that moment. Its score is gold.
+function liveSolveRun(sc, iters) {
+  const base = scenarioAt(sc, -Infinity); let best = null, k = 1;
+  // Two starting plans: the solver's tightest, and the house planner's, which leaves more slack for surprises.
+  for (const start of [solve(base, iters).plan, housePlan(base)]) {
+    const r = liveRun(sc, start, (s, plan, e) => replan(s, plan, e.at, Math.round(iters / 10), 777 + k++));
+    if (!best || r.score > best.score) best = r;
+  }
+  return best;
+}
+const liveHouseRun = sc => liveRun(sc, housePlan(scenarioAt(sc, -Infinity)), (s, plan, e, fixed) => housePlan(s, null, null, fixed));
+const liveHouse = sc => liveHouseRun(sc).plan;
+// The best live play found for a wave: what the gold target is set from, and what a debrief shows as the solution.
+function solution(sc, iters) { const a = liveSolveRun(sc, iters || 4000), b = liveHouseRun(sc); return a.score >= b.score ? a : b; }
 
 // Targets: bronze beats the live house controller. Gold is the live solver, which learns of each
 // disruption only when it is announced, as the player does. Silver clears the shift: halfway to gold,
 // but never less than 40 points above the house unless gold itself is closer.
 function targets(sc, iters) {
-  const fin = scenarioAt(sc, Infinity), house = evaluate(fin, liveHouse(sc)).score;
-  const gold = Math.max(house, evaluate(fin, liveSolve(sc, iters || 4000)).score), gap = gold - house;
+  const house = liveHouseRun(sc).score, gold = Math.max(house, solution(sc, iters).score), gap = gold - house;
   return { house, silver: house + Math.max(Math.round(gap / 2), Math.min(gap, 40)), gold };
 }
 
-const Core = { CLS, RULES, TRAINING, t, hhmm, shift, twist, evaluate, housePlan, minDesks, delayCost, targets, scenarioAt, describe, lockAt, liveHouse };
+const Core = { CLS, RULES, TRAINING, t, hhmm, shift, twist, evaluate, housePlan, minDesks, delayCost, targets, scenarioAt, describe, lockAt, liveHouse, solution };
 if (typeof module !== 'undefined') module.exports = Core;

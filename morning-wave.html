@@ -1,3 +1,9 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>[hidden]{display:none!important}body{margin:0}</style>
 <title>Morning Wave</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=B612+Mono:wght@400;700&family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&display=swap">
@@ -14,6 +20,7 @@
 --ok:#45c48b;--bad:#f2695e;--warn:#f0a53a;--board:#080d12;--board-ink:#f6d868;--board-dim:#7d8892;--board-line:#1f2c36;
 --blk-ok:#1d4d39;--blk-ok-ink:#c9f2de;--blk-bad:#5e2420;--blk-bad-ink:#ffd9d5;--shut:#222e38;color-scheme:dark}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{background:var(--bg);color:var(--ink);font:15px/1.45 var(--body);padding-block:16px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
 h1,h2{font-family:var(--display);margin:0;letter-spacing:.02em;text-transform:uppercase;text-wrap:balance}
@@ -87,7 +94,10 @@ select{background:var(--surface);border:1px solid var(--line);border-radius:4px;
 .lock{font-size:14px;color:var(--warn);font-weight:500}
 .log{list-style:none;margin:0;padding:0;font-size:13px;display:flex;flex-direction:column;gap:4px;max-height:260px;overflow:auto}
 .log b{font-family:var(--data);color:var(--muted);margin-right:4px}.log li.ev{color:var(--warn)}.log li.bad{color:var(--bad)}.log li.warn{color:var(--bad);font-style:italic}
-.dl{margin:4px 0 0;padding-left:18px}
+.dl{margin:4px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:3px}
+.sol{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:10px}
+.sol button.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.cmp{font:13px/1.5 var(--data);background:var(--bg);border-radius:4px;padding:6px 8px}
 .tl .blk{touch-action:none;cursor:grab}.tl .blk.dragging{cursor:grabbing;z-index:5;opacity:.9;box-shadow:0 2px 6px rgba(0,0,0,.3)}
 .tl .blk.locked{outline:1px dashed var(--muted);outline-offset:-1px}.tl .blk.gone{opacity:.45}
 .tl .trk.svc.over{background-color:color-mix(in srgb,var(--bad) 12%,transparent)}
@@ -100,6 +110,8 @@ details{font-size:14px}summary{cursor:pointer;font-weight:600}details ul{margin:
 @media (max-width:520px){h1{font-size:28px}.score{grid-template-columns:repeat(3,1fr)}.score div:nth-child(4){border-left:0}.score div:nth-child(n+4){border-top:1px solid var(--line)}
 .board .hd,.board .row{grid-template-columns:3.4em 4.2em minmax(0,1fr) 1.9em 1.9em 5.6em;font-size:12px}.board .cls{display:none}.fld{grid-template-columns:minmax(0,1fr)}}
 </style>
+</head>
+<body>
 <div class="wrap">
   <div class="top">
     <div><h1>Morning Wave</h1><p>Get every departure off the apron. Give each flight a stand, a gate and check-in desks, then start the shift and handle what goes wrong. Each shift you clear unlocks a harder one.</p></div>
@@ -391,38 +403,43 @@ function lockAt(f, p, c) {
 // The house controller plans before the shift, then at each disruption re-plans every flight it may still change.
 // The live solver: a strong plan made before the shift, then a careful re-plan at each disruption,
 // knowing no more than the player does at that moment. Its score is gold.
-function liveSolve(sc, iters) {
-  const base = scenarioAt(sc, -Infinity), fin = scenarioAt(sc, Infinity);
-  let best = null, bestV = -1e9;
-  // Two starting plans: the solver's tightest, and the house planner's, which leaves more slack for surprises.
-  for (const start of [solve(base, iters).plan, housePlan(base)]) {
-    let plan = start, k = 1;
-    for (const e of sc.events || []) plan = replan(scenarioAt(sc, e.at), plan, e.at, Math.round(iters / 10), 777 + k++);
-    const v = evaluate(fin, plan).score; if (v > bestV) { bestV = v; best = plan; }
-  }
-  return best;
-}
-function liveHouse(sc) {
-  let plan = housePlan(scenarioAt(sc, -Infinity));
+// Play a shift live from a starting plan, re-planning at each disruption with what is known then.
+// Returns the final plan and the plan after each step, so a debrief can show what changed and when.
+function liveRun(sc, start, step) {
+  let plan = start; const steps = [{ at: null, plan: start }];
   for (const e of sc.events || []) {
     const s = scenarioAt(sc, e.at), fixed = {};
     for (const f of s.flights) { const p = plan[f.id], L = lockAt(f, p, e.at);
       fixed[f.id] = L.state === 'free' ? { minDelay: L.minDelay, desks: L.desks } : { all: true, plan: p }; }
-    plan = housePlan(s, null, null, fixed);
+    plan = step(s, plan, e, fixed); steps.push({ at: e.at, event: e, plan });
   }
-  return plan;
+  return { plan, steps, score: evaluate(scenarioAt(sc, Infinity), plan).score };
 }
+// The live solver: a strong plan made before the shift, then a careful re-plan at each disruption,
+// knowing no more than the player does at that moment. Its score is gold.
+function liveSolveRun(sc, iters) {
+  const base = scenarioAt(sc, -Infinity); let best = null, k = 1;
+  // Two starting plans: the solver's tightest, and the house planner's, which leaves more slack for surprises.
+  for (const start of [solve(base, iters).plan, housePlan(base)]) {
+    const r = liveRun(sc, start, (s, plan, e) => replan(s, plan, e.at, Math.round(iters / 10), 777 + k++));
+    if (!best || r.score > best.score) best = r;
+  }
+  return best;
+}
+const liveHouseRun = sc => liveRun(sc, housePlan(scenarioAt(sc, -Infinity)), (s, plan, e, fixed) => housePlan(s, null, null, fixed));
+const liveHouse = sc => liveHouseRun(sc).plan;
+// The best live play found for a wave: what the gold target is set from, and what a debrief shows as the solution.
+function solution(sc, iters) { const a = liveSolveRun(sc, iters || 4000), b = liveHouseRun(sc); return a.score >= b.score ? a : b; }
 
 // Targets: bronze beats the live house controller. Gold is the live solver, which learns of each
 // disruption only when it is announced, as the player does. Silver clears the shift: halfway to gold,
 // but never less than 40 points above the house unless gold itself is closer.
 function targets(sc, iters) {
-  const fin = scenarioAt(sc, Infinity), house = evaluate(fin, liveHouse(sc)).score;
-  const gold = Math.max(house, evaluate(fin, liveSolve(sc, iters || 4000)).score), gap = gold - house;
+  const house = liveHouseRun(sc).score, gold = Math.max(house, solution(sc, iters).score), gap = gold - house;
   return { house, silver: house + Math.max(Math.round(gap / 2), Math.min(gap, 40)), gold };
 }
 
-const Core = { CLS, RULES, TRAINING, t, hhmm, shift, twist, evaluate, housePlan, minDesks, delayCost, targets, scenarioAt, describe, lockAt, liveHouse };
+const Core = { CLS, RULES, TRAINING, t, hhmm, shift, twist, evaluate, housePlan, minDesks, delayCost, targets, scenarioAt, describe, lockAt, liveHouse, solution };
 
 
 </script>
@@ -461,7 +478,7 @@ function load(n){
   if(!plan||sc.flights.some(f=>!plan[f.id])){plan=blank();
     if(!lvl)sc.flights.forEach((f,i)=>plan[f.id]={stand:SHEET.stand[i]||null,gate:SHEET.gate[i]||null,desks:SHEET.desks[i],delay:SHEET.delay[i]||0,auto:false});}
   hist=[];hints=store.get('mw-hints-'+sc.id)||0;
-  sel=sc.flights[0].id;result=null;tg=store.get('mw-tg4-'+sc.id);
+  sel=sc.flights[0].id;result=null;soln=null;view='mine';tg=store.get('mw-tg4-'+sc.id);
   const ne=sc.events.length,notes=(lvl?sc.notes:['Loaded with the plan from your spreadsheet so far. Red means a clash or a rule broken. Stands open at 07:00, but the first flights need theirs from 06:45.'])
     .concat([`${ne} disruption${ne>1?'s':''} will be announced during the shift. Each one pauses the clock for ${decideSecs()} seconds while you re-plan.`]);
   $('note').hidden=false;$('note').innerHTML=(lvl?'<b>Notices for shift '+lvl+'.</b> ':'')+notes.map(esc).join(' ');
@@ -499,7 +516,7 @@ let sugMsg='',hints=0;const HINT=10;
 function setHints(n){hints=n;store.set('mw-hints-'+sc.id,n)}
 
 function status(f,r){
-  const fr=run?run.frozen:result?run0.frozen:null;
+  const fr=FRZ();
   if(fr&&fr[f.id]){const z=fr[f.id];return z.ok?['ok',z.delay?'Left +'+z.delay:'Departed']:['bad','Cancelled']}
   if(!run)return r.ok?['ok',r.delay?'Delay +'+r.delay:'On time']:['bad',r.issues.length+' issue'+(r.issues.length>1?'s':'')];
   const c=run.c;
@@ -524,7 +541,7 @@ function renderScore(){
 }
 function probe(f,kind,id){const tmp=clone(P());tmp[f.id][kind]=id;const K=kind[0].toUpperCase()+kind.slice(1)+' '+id;return evaluate(known,tmp).flights[f.id].issues.filter(x=>x.startsWith(K))}
 function renderEditor(){
-  const f=known.flights.find(x=>x.id===sel),p=(result?run0.plan:P())[f.id],r=ev.flights[f.id],w=ev.win[f.id],L=lockOf(f.id),fz=run?run.frozen[f.id]:result?run0.frozen[f.id]:null;
+  const f=known.flights.find(x=>x.id===sel),p=VP()[f.id],r=ev.flights[f.id],w=ev.win[f.id],L=lockOf(f.id),fz=(FRZ()||{})[f.id]||null;
   const facLock=L.state!=='free',deskLock=facLock||!!L.desks;
   const chips=(kind,list)=>list.map(x=>{const small=CLS[x.cls]<CLS[f.cls],pr=small||facLock?[]:probe(f,kind,x.id);
     return `<button class="chip${p[kind]===x.id?' on':''}${pr.length?' clash':''}" data-set="${kind}" data-v="${x.id}" ${small||facLock?'disabled':''} title="${esc(small?'Too small for class '+f.cls:pr[0]||'Free')}" aria-pressed="${p[kind]===x.id}">${x.id}<small>${x.cls}</small></button>`}).join('');
@@ -532,6 +549,7 @@ function renderEditor(){
     :L.state==='stand'?'Aircraft is on stand. You can only hold it (add delay).':L.desks?'Check-in has opened, so its desk count is fixed.':'';
   $('editor').innerHTML=`<div class="ed-h"><b>${f.id}</b><span>${esc(f.dest)} · departs ${hhmm(f.dep)}${p.delay?' → '+hhmm(r.dep):''} · ${f.pax} pax · class ${f.cls}${f.high?' · high priority ★':''}${f.late?' · inbound late':''}</span></div>
   ${lockMsg?`<div class="lock">${lockMsg}</div>`:''}
+  ${result&&soln?`<div class="cmp">You: ${facTxt(run0.plan[f.id])}${run0.frozen[f.id].ok?'':' (cancelled)'}<br>${MED[medal(soln.score)]||'Best'} plan: ${facTxt(soln.plan[f.id])}${solFrozen[f.id]&&!solFrozen[f.id].ok?' (cancelled)':''}</div>`:''}
   <div class="fld"><span class="l">Stand</span><div class="chips">${chips('stand',known.stands)}<em class="need">held ${hhmm(w.stand[0])} to ${hhmm(w.stand[1])}</em></div></div>
   <div class="fld"><span class="l">Gate</span><div class="chips">${chips('gate',known.gates)}<em class="need">held ${hhmm(w.gate[0])} to ${hhmm(w.gate[1])}</em></div></div>
   <div class="fld"><span class="l">Desks</span><div class="step"><button data-desk="-1" aria-label="Fewer desks" ${p.desks<=1||deskLock?'disabled':''}>−</button><b>${p.desks}</b><button data-desk="1" aria-label="More desks" ${p.desks>=R.maxDesks||deskLock?'disabled':''}>+</button><button class="chip${p.auto!==false?' on':''}" data-auto="1" ${deskLock?'disabled':''} aria-pressed="${p.auto!==false}" title="Automatic: the fewest desks that finish check-in in time">Auto</button><em>check-in ${hhmm(f.open)} to ${hhmm(r.ciEnd)}, closes ${hhmm(r.close)} · needs at least ${minDesks(known,f,p.delay)}</em></div></div>
@@ -559,7 +577,7 @@ function teamLanes(PL,FR){
   return `<div class="grp">Ground teams · each flight needs one for its last ${Math.min(...known.flights.map(f=>f.svc))}–${Math.max(...known.flights.map(f=>f.svc))} min before departure</div>${lanes.map((l,i)=>lane('Team '+(i+1),l)).join('')}${over.map(l=>lane('No team',l,true)).join('')}`;
 }
 function renderTL(){
-  const PL=result?run0.plan:P(),FR=run?run.frozen:result?run0.frozen:{};const row=(kind,x)=>{const blks=known.flights.filter(f=>PL[f.id][kind]===x.id).map(f=>{const w=ev.win[f.id][kind],r=ev.flights[f.id],K=kind[0].toUpperCase()+kind.slice(1)+' ',bad=r.issues.some(i=>i.startsWith(K)),fz=FR[f.id],L=lockOf(f.id);
+  const PL=VP(),FR=FRZ()||{};const row=(kind,x)=>{const blks=known.flights.filter(f=>PL[f.id][kind]===x.id).map(f=>{const w=ev.win[f.id][kind],r=ev.flights[f.id],K=kind[0].toUpperCase()+kind.slice(1)+' ',bad=r.issues.some(i=>i.startsWith(K)),fz=FR[f.id],L=lockOf(f.id);
       return `<button class="blk${bad&&!fz?' bad':''}${f.id===sel?' sel':''}${fz?' gone':L.state!=='free'?' locked':''}" data-f="${f.id}" data-k="${kind}" style="left:${pc(w[0])};width:calc(${pc(w[1])} - ${pc(w[0])})" title="${f.id} ${hhmm(w[0])}–${hhmm(w[1])} · drag to move">${f.id}</button>`}).join('');
     const shuts=(x.shuts||[]).map(c=>`<div class="shut hatch" title="Closed ${hhmm(c[0])}–${hhmm(c[1])}" style="left:${pc(c[0])};width:calc(${pc(c[1])} - ${pc(c[0])})"></div>`).join('');
     return `<div class="r"><div class="lab"><b>${x.id}</b> ${x.cls}</div><div class="trk" data-row="${kind}" data-v="${x.id}"><div class="shut" style="left:0;width:${pc(x.from)}"></div><div class="shut" style="left:${pc(x.to)};right:0"></div>${shuts}${blks}</div></div>`};
@@ -605,14 +623,39 @@ function debrief(){
   <div>${r.departed} of ${r.total} flights left, ${r.onTime} on time, ${r.total-r.departed} cancelled, ${r.delayMin} minutes of delay${r.bonus?`, spare-desk bonus ${r.bonus}`:''}${r.hints?`, ${r.hints} suggested fix${r.hints>1?'es':''} (−${r.hints*HINT})`:''}. The house controller, facing the same disruptions, scored ${num(tg.house)}.</div>
   ${loss.length?`<div><b>Where the points went</b><ul class="dl">${loss.map(x=>`<li><b>${x.f.id}</b> −${x.lost}: ${esc(x.why)}</li>`).join('')}</ul></div>`:''}
   <div><b>Next time</b> ${esc(tip)}</div>
+  ${solPanel(m)}
   <div class="ctl">${lvl&&m>=2?`<button id="next" class="go">Start shift ${lvl+1}</button>`:''}<button id="replan">Replan this shift</button>${lvl?'<button id="reroll2">New wave</button>':''}</div></div>`;
 }
-let run0=null;
+let run0=null,soln=null,view='mine',solFrozen={};
+// What the screen shows after a shift: your plan, or the solution plan.
+const VP=()=>result?(view==='sol'?soln.plan:run0.plan):P();
+const FRZ=()=>run?run.frozen:result?(view==='sol'?solFrozen:run0.frozen):null;
+const facTxt=q=>`${q.stand||'no stand'}, ${q.gate||'no gate'}, ${q.delay?'+'+q.delay+' min':'on time'}, ${q.desks} desk${q.desks>1?'s':''}`;
+function changes(a,b){const out=[];
+  for(const f of known.flights){const x=a[f.id],y=b[f.id],bits=[];
+    if(x.stand!==y.stand)bits.push(`stand ${x.stand||'none'} → ${y.stand||'none'}`);
+    if(x.gate!==y.gate)bits.push(`gate ${x.gate||'none'} → ${y.gate||'none'}`);
+    if(x.delay!==y.delay)bits.push(`delay +${x.delay} → +${y.delay}`);
+    if(x.desks!==y.desks)bits.push(`desks ${x.desks} → ${y.desks}`);
+    if(bits.length)out.push(`<b>${f.id}</b> ${bits.join(', ')}`)}
+  return out}
+const cap=(xs,n)=>xs.length>n?xs.slice(0,n).concat([`and ${xs.length-n} more: see the timeline`]):xs;
+function solPanel(m){
+  if(!soln)return `<div class="ctl"><button id="showsol">${m>=2?'Compare with the gold plan':'Show a silver plan'}</button><span class="need" id="solwait" hidden>Working it out…</span></div>`;
+  const e=evaluate(scenarioAt(sc,Infinity),soln.plan),all=known.flights.map(f=>e.flights[f.id]),sm=medal(soln.score);
+  const start=changes(plan,soln.steps[0].plan);
+  const steps=soln.steps.slice(1).map((st,i)=>{const c=changes(soln.steps[i].plan,st.plan);
+    return `<li><b>${hhmm(st.at)}</b> ${esc(describe(st.event,sc))}<br>${c.length?'It changed: '+cap(c,5).join('; '):'No change needed.'}</li>`}).join('');
+  return `<div class="sol"><div class="ctl"><button data-view="mine" aria-pressed="${view==='mine'}" class="${view==='mine'?'on':''}">Your shift</button><button data-view="sol" aria-pressed="${view==='sol'}" class="${view==='sol'?'on':''}">${MED[sm]||'Best'} plan</button></div>
+  <div>This plan scored <b>${num(soln.score)}</b>${sm>=2?` (silver needs ${num(tg.silver)})`:''}: ${all.filter(r=>r.ok).length} of ${all.length} flights left, ${all.filter(r=>!r.ok).length} cancelled, ${all.reduce((a,r)=>a+(r.ok?r.delay:0),0)} minutes of delay. It learned of each disruption when you did. ${view==='sol'?'The board and timeline now show its plan; click a flight to compare.':'Press the plan button to see it on the board and timeline.'}</div>
+  <div><b>Before the shift</b> ${start.length?`it planned ${start.length} flight${start.length>1?'s':''} differently from you (yours → its):<ul class="dl">${cap(start,6).map(x=>'<li>'+x+'</li>').join('')}</ul>`:'its plan matched yours.'}</div>
+  ${steps?`<div><b>At each disruption</b><ul class="dl">${steps}</ul></div>`:''}</div>`;
+}
 function renderResult(){$('result').innerHTML=result&&tg?debrief():''}
 function render(){
   if(drag){dirty=true;return}
   known=run?scenarioAt(sc,run.c):result?scenarioAt(sc,Infinity):scenarioAt(sc,-Infinity);
-  ev=evaluate(known,result?run0.plan:P());
+  ev=evaluate(known,VP());
   renderScore();renderBoard();renderEditor();renderTL();renderResult();renderLog();renderBar();
   $('run').hidden=!!run;$('run').disabled=!tg;$('scn').disabled=!!run;
   for(const id of ['clear','house','reroll'])$(id).disabled=!!run;
@@ -623,7 +666,7 @@ function render(){
 function startRun(){
   if(run||!tg)return;
   run={c:T0,plan:clone(plan),next:0,paused:null,deadline:0,frozen:{},log:[{t:T0,s:'Shift started.'}],speed:1,last:performance.now()};hist=[];
-  result=null;render();requestAnimationFrame(tick);
+  result=null;soln=null;view='mine';render();requestAnimationFrame(tick);
 }
 function fire(e){
   run.c=e.at;run.paused=e;run.deadline=performance.now()+decideSecs()*1000;run.next++;
@@ -720,7 +763,11 @@ document.addEventListener('click',e=>{
   else if(b.id==='house'){snap();plan=housePlan(scenarioAt(sc,-Infinity));save()}
   else if(b.id==='reroll'||b.id==='reroll2'){rolls[lvl]=(rolls[lvl]||0)+1;store.set('mw-rolls',rolls);load(lvl)}
   else if(b.id==='next')load(lvl+1);
-  else if(b.id==='replan'){result=null;render()}
+  else if(b.id==='replan'){result=null;view='mine';render()}
+  else if(b.id==='showsol'){$('solwait').hidden=false;b.disabled=true;const id=sc.id;setTimeout(()=>{if(sc.id!==id)return;soln=Core.solution(sc);
+    const e=evaluate(scenarioAt(sc,Infinity),soln.plan);solFrozen={};for(const f of sc.flights){const r=e.flights[f.id];solFrozen[f.id]={ok:r.ok,points:r.points,issues:r.issues,delay:r.delay,dep:r.dep}}
+    view='sol';render()},30)}
+  else if(d.view){view=d.view;render()}
   else if(b.id==='run')startRun();
   else if(b.id==='resume')resume(false);
   else if(b.id==='fast'){run.speed=run.speed>1?1:4;renderBar()}
@@ -742,3 +789,5 @@ $('rules').innerHTML=[`Aircraft classes run S, M, L. A bigger stand or gate take
 load(Math.min(progress+1,store.get('mw-last')||0)||0);
 })();
 </script>
+</body>
+</html>

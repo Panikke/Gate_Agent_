@@ -49,6 +49,16 @@ On the **Apron and gates** timeline, each flight is a bar.
 
 The **Shift log** under the departures board lists every disruption, departure and cancellation as it happens.
 
+### Learning from a shift you did not clear
+
+At the bottom of the debrief, press **Show a silver plan** (after a shift you did clear, it says **Compare with the gold plan**). The game works out the best plan it can find. Like you, it only learns of each disruption when it is announced. It then shows:
+
+- **Its score**, and how many flights it got away.
+- **Before the shift:** the flights it planned differently from you, shown as yours → its.
+- **At each disruption:** what it changed, for example "AL411 stand S6 → S2, delay +55 → +34".
+
+The departures board and timeline switch to its plan. Click any flight to see your settings and its settings side by side. Use **Your shift** and the plan button to switch between the two.
+
 Press **Replan this shift** in the debrief to go back to your plan and try the same shift again.
 
 ## The other buttons

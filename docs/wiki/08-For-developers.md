@@ -31,6 +31,12 @@ Rebuild the game after editing `src/`:
 python3 tools/build.py
 ```
 
+This writes `morning-wave.html` as a complete page. To also write the page without its `<html>` wrapper, for a host that adds its own, pass `--fragment` and a path:
+
+```bash
+python3 tools/build.py --fragment build/fragment.html
+```
+
 Check difficulty across shifts 1 to 10 (takes about 20 seconds):
 
 ```bash
