@@ -130,6 +130,20 @@ details{font-size:14px}summary{cursor:pointer;font-weight:600}details ul{margin:
 .map svg [data-row],.map svg [data-f]{cursor:pointer}.map svg [data-row]>text,.map svg path[fill=none]{pointer-events:none}
 .map .scrub{display:flex;gap:10px;align-items:center;margin-top:10px;font:13px var(--data)}.map .scrub input{flex:1;accent-color:var(--accent);min-height:36px}
 .map{font-family:var(--body)}.map svg g[data-row=stand] text{paint-order:stroke;stroke:var(--surface);stroke-width:5px;stroke-linejoin:round}
+.map .mgrid{display:grid;grid-template-columns:210px minmax(0,1fr);gap:10px;margin-top:8px;align-items:start}
+.map .queue{display:flex;flex-direction:column;gap:4px}.map .qh{font:600 13px var(--display);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.map .qi{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;font:12px/1.3 var(--data);padding:6px 8px;min-height:44px;border-left:4px solid var(--line)}
+.map .qi b{font-size:13px}.map .qi.now{border-left-color:var(--accent)}.map .qi.bad{border-left-color:var(--bad)}.map .qi.bad span:last-child{color:var(--bad)}
+.map .qi.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}.map .qi.on span{color:inherit!important}
+.map .sz{font-size:10px;padding:0 3px;border-radius:2px;background:color-mix(in srgb,currentColor 16%,transparent)}
+.map .mbar{display:flex;flex-direction:column;gap:3px;background:var(--bg);border-left:4px solid var(--accent);border-radius:4px;padding:8px 10px;margin-bottom:8px;font-size:14px}
+.map .mbar.bad{border-left-color:var(--bad)}.map .mbar button{align-self:flex-start;margin-top:4px}
+.map .mk{color:var(--muted);font-size:13px}.map .mk i{display:inline-block;width:14px;height:10px;border:3px solid;border-radius:2px;margin:0 3px 0 8px;vertical-align:-1px}.map .mk i:first-child{margin-left:0}
+.map .scrub{margin-top:0}
+.desk.mapmode{grid-template-columns:minmax(0,1fr) 340px;grid-template-areas:"tl ed" "board ed"}
+@media (min-width:1000px){.desk.mapmode .a-tl{position:sticky;top:8px}}
+@media (max-width:760px){.desk.mapmode{grid-template-columns:minmax(0,1fr);grid-template-areas:"tl" "ed" "board"}
+.map .mgrid{grid-template-columns:minmax(0,1fr)}.map .queue{flex-direction:row;overflow-x:auto;padding-bottom:4px}.map .qh{display:none}.map .qi{flex:0 0 auto}}
 .map .waiting{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px;font-size:13px;color:var(--muted)}
 .map .hint{font-size:13px;color:var(--muted);margin-top:8px}
 .clash{border-left:3px solid var(--bad);padding-left:8px}
@@ -330,6 +344,7 @@ function bar(f,kind,w,PL,FR,top){
 }
 function renderTL(){
   $('tlkey').hidden=mapView;$('vt0').className=mapView?'':'on';$('vt1').className=mapView?'on':'';$('vt0').setAttribute('aria-pressed',!mapView);$('vt1').setAttribute('aria-pressed',mapView);
+  document.querySelector('.desk').classList.toggle('mapmode',mapView);
   if(mapView){$('tl').innerHTML=renderMap();return}
   const PL=VP(),FR=FRZ()||{};
   const row=(kind,x,thin)=>{const blks=known.flights.filter(f=>PL[f.id][kind]===x.id).map(f=>bar(f,kind,ev.win[f.id][kind],PL,FR)).join('');
@@ -356,32 +371,42 @@ function renderMap(){
   const open=(x)=>t>=x.from&&t<x.to&&!(x.shuts||[]).some(c=>t>=c[0]&&t<c[1]);
   const gx={};known.gates.forEach((g,i)=>gx[g.id]=120+gw*i+gw/2);
   const on=(kind,id)=>known.flights.filter(f=>PL[f.id][kind]===id&&!FR[f.id]&&ev.win[f.id][kind][0]<=t&&t<ev.win[f.id][kind][1]);
-  let o=`<svg viewBox="0 0 ${W} 470" role="img" aria-label="Apron at ${hhmm(t)}"><rect x="20" y="16" width="${W-40}" height="64" rx="6" fill="var(--board)"/><text x="36" y="55" font-family="Barlow Condensed" font-weight="700" font-size="20" fill="var(--board-ink)" letter-spacing="2">PIER</text>`;
-  for(const g of known.gates){const fl=on('gate',g.id),x=gx[g.id],shut=g.from!==undefined&&!open(g),bad=fl.length>1||fl.some(f=>ev.flights[f.id].issues.some(i=>i.startsWith('Gate ')));
-    const fill=shut?'var(--shut)':bad?'var(--blk-bad)':fl.length?'var(--blk-ok)':'var(--board-line)',ink=fl.length||shut||bad?'var(--ink)':'var(--board-ink)';
-    o+=`<g data-row="gate" data-v="${g.id}"><title>Gate ${g.id} (${g.cls})${fl.length?': '+fl.map(f=>f.id).join(', '):': free'}</title><rect x="${x-34}" y="26" width="68" height="44" rx="4" fill="${fill}" stroke="${bad?'var(--bad)':'none'}" stroke-width="2"/><text x="${x}" y="46" text-anchor="middle" font-family="B612 Mono" font-size="15" font-weight="700" fill="${ink}">${g.id}</text><text x="${x}" y="62" text-anchor="middle" font-family="B612 Mono" font-size="10" fill="${ink}">${fl.length?fl.map(f=>f.id).join(' '):g.cls}</text></g>`}
-  known.stands.forEach((x,i)=>{const cx=20+sw*i+sw/2,fl=on('stand',x.id),shut=!open(x),bad=fl.length>1;
-    o+=`<g data-row="stand" data-v="${x.id}"><title>Stand ${x.id} (${x.cls})${shut?' closed':''}</title><rect x="${cx-sw/2+6}" y="120" width="${sw-12}" height="290" rx="4" fill="${shut?'var(--shut)':'var(--surface)'}" stroke="${bad?'var(--bad)':'var(--line)'}" stroke-width="2"${shut?' stroke-dasharray="8 6"':''}/><text x="${cx}" y="144" text-anchor="middle" font-family="Barlow Condensed" font-weight="700" font-size="20" fill="var(--ink)">${x.id} <tspan font-size="14" fill="var(--muted)">${x.cls}</tspan></text><line x1="${cx}" y1="156" x2="${cx}" y2="400" stroke="var(--accent)" stroke-width="2" pointer-events="none"/>`;
-    if(shut){const sh=(x.shuts||[]).find(c=>t>=c[0]&&t<c[1]),why=t<x.from?'opens '+hhmm(x.from):sh?'closed to '+hhmm(sh[1]):'closed';
-      o+=`<text x="${cx}" y="280" text-anchor="middle" font-family="B612 Mono" font-size="12" fill="var(--muted)">${why}</text>`}
+  let o=`<svg viewBox="0 0 ${W} 362" role="img" aria-label="Apron at ${hhmm(t)}"><rect x="20" y="16" width="${W-40}" height="64" rx="6" fill="var(--board)"/><text x="36" y="55" font-family="Barlow Condensed" font-weight="700" font-size="20" fill="var(--board-ink)" letter-spacing="2">PIER</text>`;
+  // For the selected flight, each stand and gate says whether it fits over that flight's whole time there.
+  const sf=FR[sel]?null:known.flights.find(x=>x.id===sel)||null,canMove=!!sf&&!result&&lockOf(sf.id).state==='free';
+  const fit=(kind,x)=>!canMove?null:CLS[x.cls]<CLS[sf.cls]?'small':PL[sf.id][kind]===x.id?'here':probe(sf,kind,x.id).length?'clash':'ok';
+  const ring={ok:'var(--ok)',clash:'var(--bad)',here:'var(--accent)'};
+  for(const g of known.gates){const fl=on('gate',g.id),x=gx[g.id],shut=g.from!==undefined&&!open(g),bad=fl.length>1||fl.some(f=>ev.flights[f.id].issues.some(i=>i.startsWith('Gate '))),ft=fit('gate',g);
+    const fill=ft==='small'?'var(--board)':shut?'var(--shut)':bad?'var(--blk-bad)':fl.length?'var(--blk-ok)':'var(--board-line)',ink=ft==='small'?'var(--board-dim)':fl.length||shut||bad?'var(--ink)':'var(--board-ink)';
+    o+=`<g data-row="gate" data-v="${g.id}"><title>Gate ${g.id} (${g.cls})${fl.length?': '+fl.map(f=>f.id).join(', '):': free'}</title><rect x="${x-34}" y="26" width="68" height="44" rx="4" fill="${fill}" stroke="${ring[ft]||(bad?'var(--bad)':'none')}" stroke-width="${ring[ft]?4:2}"${ft==='clash'?' stroke-dasharray="6 4"':''}/><text x="${x}" y="46" text-anchor="middle" font-family="B612 Mono" font-size="15" font-weight="700" fill="${ink}">${g.id}</text><text x="${x}" y="62" text-anchor="middle" font-family="B612 Mono" font-size="10" fill="${ink}">${fl.length?fl.map(f=>f.id).join(' '):g.cls}</text></g>`}
+  known.stands.forEach((x,i)=>{const cx=20+sw*i+sw/2,fl=on('stand',x.id),shut=!open(x),bad=fl.length>1,ft=fit('stand',x);
+    o+=`<g data-row="stand" data-v="${x.id}"><title>Stand ${x.id} (${x.cls})${shut?' closed':''}</title><rect x="${cx-sw/2+6}" y="110" width="${sw-12}" height="200" rx="4" fill="${ft==='small'?'var(--shut)':ft==='ok'?'color-mix(in srgb,var(--ok) 12%,var(--surface))':shut?'var(--shut)':'var(--surface)'}" stroke="${ring[ft]||(bad?'var(--bad)':'var(--line)')}" stroke-width="${ring[ft]?4:2}"${ft==='clash'||(shut&&!ring[ft])?' stroke-dasharray="8 6"':''} opacity="${ft==='small'?.55:1}"/><text x="${cx}" y="134" text-anchor="middle" font-family="Barlow Condensed" font-weight="700" font-size="20" fill="var(--ink)">${x.id} <tspan font-size="14" fill="var(--muted)">${x.cls}</tspan></text><line x1="${cx}" y1="146" x2="${cx}" y2="300" stroke="var(--accent)" stroke-width="2" pointer-events="none"/>`;
+    if(shut){const sh=(x.shuts||[]).find(c=>t>=c[0]&&t<c[1]),why=t<x.from?'not open till '+hhmm(x.from):sh?'closed till '+hhmm(sh[1]):'closed';
+      if(!fl.length){const [w1,...w2]=why.split(' till ');o+=`<text x="${cx}" y="214" text-anchor="middle" font-family="B612 Mono" font-size="12" fill="var(--muted)">${w2.length?w1+' till':why}</text>${w2.length?`<text x="${cx}" y="230" text-anchor="middle" font-family="B612 Mono" font-size="12" fill="var(--muted)">${w2[0]}</text>`:''}`}}
     else if(!fl.length){const nx=known.flights.filter(f=>PL[f.id].stand===x.id&&!FR[f.id]&&ev.win[f.id].stand[0]>t).sort((a,b)=>ev.win[a.id].stand[0]-ev.win[b.id].stand[0])[0];
-      o+=`<text x="${cx}" y="272" text-anchor="middle" font-family="B612 Mono" font-size="13" fill="var(--muted)">free</text>${nx?`<text x="${cx}" y="292" text-anchor="middle" font-family="B612 Mono" font-size="11" fill="var(--muted)">${nx.id} at ${hhmm(ev.win[nx.id].stand[0])}</text>`:''}`}
-    fl.forEach((f,k)=>{const r=ev.flights[f.id],sc0={S:.55,M:.7,L:.9}[f.cls],y=250+k*26,dx=k*14,badF=!r.ok;
+      o+=`<text x="${cx}" y="214" text-anchor="middle" font-family="B612 Mono" font-size="13" fill="var(--muted)">free</text>${nx?`<text x="${cx}" y="232" text-anchor="middle" font-family="B612 Mono" font-size="11" fill="var(--muted)">${nx.id} at ${hhmm(ev.win[nx.id].stand[0])}</text>`:''}`}
+    fl.forEach((f,k)=>{const r=ev.flights[f.id],sc0={S:.55,M:.7,L:.9}[f.cls],y=195+k*24,dx=k*26-(fl.length-1)*13,badF=!r.ok;
       const phase=t>=r.dep-R.gateClose?'gate closed':t>=r.dep-R.gateBefore?'boarding':known.teams&&t>=r.dep-f.svc?'crew on':'turnaround';
       const fill=badF?'var(--blk-bad)':phase==='boarding'||phase==='gate closed'?'var(--blk-ok)':'color-mix(in srgb,var(--accent) 45%,var(--surface))';
-      if(PL[f.id].gate&&gx[PL[f.id].gate]!==undefined)o+=`<path d="M${gx[PL[f.id].gate]},70 L${gx[PL[f.id].gate]},96 L${cx},96 L${cx},158" fill="none" stroke="${r.issues.some(i=>i.startsWith('Gate '))?'var(--bad)':'var(--ink)'}" stroke-width="3"${r.issues.some(i=>i.startsWith('Gate '))?' stroke-dasharray="6 5"':''}/>`;
+      if(PL[f.id].gate&&gx[PL[f.id].gate]!==undefined)o+=`<path d="M${gx[PL[f.id].gate]},70 L${gx[PL[f.id].gate]},96 L${cx},96 L${cx},148" fill="none" stroke="${r.issues.some(i=>i.startsWith('Gate '))?'var(--bad)':'var(--ink)'}" stroke-width="3"${r.issues.some(i=>i.startsWith('Gate '))?' stroke-dasharray="6 5"':''}/>`;
       o+=`<g data-f="${f.id}"><title>${f.id} ${esc(f.dest)} · departs ${hhmm(r.dep)} · ${phase}${r.issues.length?' · '+esc(r.issues.join('; ')):''}</title><g transform="translate(${cx+dx},${y}) scale(${sc0})"><path d="${PLANE}" fill="${fill}" stroke="${f.id===sel?'var(--accent)':badF?'var(--bad)':'var(--ink)'}" stroke-width="${f.id===sel?7:badF?4:2}"/></g>
-      <text x="${cx}" y="${342+k*36}" text-anchor="middle" font-family="B612 Mono" font-size="13" font-weight="700" fill="var(--ink)">${f.id}${f.high?'★':''}</text><text x="${cx}" y="${358+k*36}" text-anchor="middle" font-family="B612 Mono" font-size="11" fill="${badF?'var(--bad)':'var(--muted)'}">${badF?'problem':phase} · ${hhmm(r.dep)}</text></g>`});
+      <text x="${cx}" y="${262+k*30}" text-anchor="middle" font-family="B612 Mono" font-size="13" font-weight="700" fill="var(--ink)">${f.id}${f.high?'★':''}</text><text x="${cx}" y="${276+k*30}" text-anchor="middle" font-family="B612 Mono" font-size="11" fill="${badF?'var(--bad)':'var(--muted)'}">${badF?'problem':phase} · ${hhmm(r.dep)}</text></g>`});
     o+='</g>'});
-  o+=`<line x1="20" y1="440" x2="${W-20}" y2="440" stroke="var(--accent)" stroke-width="3" stroke-dasharray="14 10"/><text x="${W-20}" y="462" text-anchor="end" font-family="B612 Mono" font-size="12" fill="var(--muted)">TAXIWAY</text></svg>`;
-  const wait=known.flights.filter(f=>!PL[f.id].stand&&!FR[f.id]);
-  const sf=known.flights.find(x=>x.id===sel),sw0=sf&&ev.win[sf.id].stand;
-  const away=sf&&!FR[sf.id]&&PL[sf.id].stand&&!(sw0[0]<=t&&t<sw0[1]);
-  return `<div class="map">${o}
-  ${run?`<div class="scrub"><b>${hhmm(Math.floor(t))}</b><span>Live: the map follows the shift clock.</span></div>`:`<div class="scrub"><label for="mapt">Time</label><input type="range" id="mapt" min="${T0}" max="${T1-10}" step="5" value="${Math.round(t/5)*5}"><b>${hhmm(t)}</b></div>`}
-  ${away?`<div class="hint">${sf.id} is on ${PL[sf.id].stand} from ${hhmm(sw0[0])} to ${hhmm(sw0[1])}. ${run?'':`<button data-jump="${sw0[0]}">Show ${hhmm(sw0[0])}</button>`}</div>`:''}
-  ${wait.length?`<div class="waiting">Needs a stand:${wait.map(f=>`<button class="chip${f.id===sel?' on':''}" data-f="${f.id}">${f.id}</button>`).join('')}<span>select one, then click a stand</span></div>`:''}
-  <div class="hint">Click an aircraft to select it, then click a stand or gate to move it there. The timeline shows clashes later in the shift.</div></div>`;
+  o+=`<line x1="20" y1="335" x2="${W-20}" y2="335" stroke="var(--accent)" stroke-width="3" stroke-dasharray="14 10"/><text x="${W-20}" y="354" text-anchor="end" font-family="B612 Mono" font-size="12" fill="var(--muted)">TAXIWAY</text></svg>`;
+  // Coming up: flights still to leave, in the order they need their stand.
+  const q=known.flights.filter(f=>!FR[f.id]&&ev.win[f.id].stand[1]>t).sort((a,b)=>ev.win[a.id].stand[0]-ev.win[b.id].stand[0]).slice(0,9);
+  const qi=f=>{const w=ev.win[f.id].stand,r=ev.flights[f.id],now=w[0]<=t,st=!r.ok?'bad':now?'now':'';
+    return `<button class="qi${f.id===sel?' on':''} ${st}" data-q="${f.id}"><b>${f.id}${f.high?'★':''} <span class="sz">${f.cls}</span></b><span>${now?'on stand':'in '+(w[0]-Math.floor(t))+' min'} · dep ${hhmm(r.dep)}</span><span>${PL[f.id].stand||'no stand'} · ${PL[f.id].gate||'no gate'}${r.ok?'':' · '+r.issues.length+' problem'+(r.issues.length>1?'s':'')}</span></button>`};
+  const sw1=sf&&ev.win[sf.id].stand,r1=sf&&ev.flights[sf.id];
+  const banner=!sf?`<div class="mbar">Pick a flight from Coming up, or tap an aircraft.</div>`
+    :`<div class="mbar${r1.ok?'':' bad'}"><b>${sf.id}${sf.high?'★':''} <span class="sz">${sf.cls}</span> to ${esc(sf.dest)}, departs ${hhmm(r1.dep)}</b>
+      <span>Needs a stand ${hhmm(sw1[0])} to ${hhmm(sw1[1])}, a gate ${hhmm(ev.win[sf.id].gate[0])} to ${hhmm(ev.win[sf.id].gate[1])}.</span>
+      <span>${r1.ok?'No problems.':esc(r1.issues.join('. '))+'.'}</span>
+      ${canMove?`<span class="mk"><i style="border-color:var(--ok)"></i>fits <i style="border-color:var(--bad);border-style:dashed"></i>would break a rule <i style="border-color:var(--accent)"></i>where it is now; greyed out is too small. Tap a stand or gate to move it.${known.stands.some(x=>fit('stand',x)==='ok'||fit('stand',x)==='here'&&!r1.issues.some(i=>i.startsWith('Stand ')))?'':' No stand fits at these times: hold it (Right arrow or the Delay buttons), or move another flight first.'}</span>`:`<span class="mk">${result?'Shift finished.':'It is on stand now: you can only hold it, from the editor or with the arrow keys.'}</span>`}
+      ${!run&&!(sw1[0]<=t&&t<sw1[1])?`<button data-jump="${sw1[0]}">Show the apron at ${hhmm(sw1[0])}</button>`:''}</div>`;
+  const clock=run?`<div class="scrub"><b>${hhmm(Math.floor(t))}</b><span>Live: the map follows the shift clock.</span></div>`
+    :`<div class="scrub"><label for="mapt">Apron at</label><input type="range" id="mapt" min="${T0}" max="${T1-10}" step="5" value="${Math.round(t/5)*5}"><b>${hhmm(t)}</b></div>`;
+  return `<div class="map">${clock}<div class="mgrid"><div class="queue"><div class="qh">Coming up</div>${q.map(qi).join('')||'<span class="need">Nothing left to leave.</span>'}</div><div class="mmain">${banner}${o}</div></div></div>`;
 }
 function placeCursor(){const cur=$('cur');if(cur&&run)cur.style.left=`calc(48px + (100% - 48px) * ${(run.c-T0)/SPAN})`}
 function renderLog(){
@@ -560,6 +585,7 @@ document.addEventListener('click',e=>{
   if(result&&(d.set||d.desk||d.delay||d.row||d.fix))return;
   if(d.map!==undefined){mapView=d.map==='1';renderTL()}
   else if(d.jump){mapT=+d.jump;renderTL()}
+  else if(d.q){if(sel!==d.q)sugMsg='';sel=d.q;selKind='stand';if(!run&&!result){const w=ev.win[sel].stand;mapT=Math.max(T0,Math.round(w[0]/5)*5)}render()}
   else if(d.f){if(sel!==d.f)sugMsg='';sel=d.f;selKind=d.k==='gate'?'gate':'stand';render()}
   else if(d.set){selKind=d.set;set(sel,{[d.set]:p[d.set]===d.v?null:d.v})}
   else if(d.desk)set(sel,{desks:p.desks+ +d.desk});
