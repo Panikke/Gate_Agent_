@@ -130,6 +130,14 @@ details{font-size:14px}summary{cursor:pointer;font-weight:600}details ul{margin:
 .key{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12px;color:var(--muted)}.key i{display:inline-block;width:22px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
 .fixes{display:flex;flex-wrap:wrap;gap:6px}.fixes button{min-height:44px;text-align:left;font-weight:600}.fixes button small{display:block;font-weight:400;font-size:12px;color:var(--muted)}
 .fixes button.best{border-color:var(--ok);border-width:2px}
+.vt{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center}.vt button.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.tl:has(.map){min-width:0}
+.map svg{display:block;width:100%;height:auto;background:color-mix(in srgb,var(--line) 45%,var(--surface));border-radius:4px}
+.map svg [data-row],.map svg [data-f]{cursor:pointer}.map svg [data-row]>text,.map svg path[fill=none]{pointer-events:none}
+.map .scrub{display:flex;gap:10px;align-items:center;margin-top:10px;font:13px var(--data)}.map .scrub input{flex:1;accent-color:var(--accent);min-height:36px}
+.map{font-family:var(--body)}.map svg g[data-row=stand] text{paint-order:stroke;stroke:var(--surface);stroke-width:5px;stroke-linejoin:round}
+.map .waiting{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px;font-size:13px;color:var(--muted)}
+.map .hint{font-size:13px;color:var(--muted);margin-top:8px}
 .clash{border-left:3px solid var(--bad);padding-left:8px}
 </style>
 </head>
@@ -148,7 +156,7 @@ details{font-size:14px}summary{cursor:pointer;font-weight:600}details ul{margin:
   <div id="result"></div>
   <div class="desk">
     <div class="col a-board"><div class="board" id="board"></div><div class="panel" id="logp" hidden><h2>Shift log</h2><ul class="log" id="log"></ul></div></div>
-    <div class="panel a-tl"><h2>Stand plan</h2><div class="key"><span><i style="background:var(--blk-ok)"></i>stand time</span><span><i style="background:color-mix(in srgb,var(--ink) 30%,var(--blk-ok))"></i>turnaround crew</span><span><i style="background:var(--blk-bad)"></i>rule broken</span><span><i style="background:repeating-linear-gradient(135deg,var(--shut) 0 4px,var(--bad) 4px 6px)"></i>closed</span></div><div class="tl-scroll"><div class="tl" id="tl"></div></div></div>
+    <div class="panel a-tl"><div class="vt"><h2>Stand plan</h2><div class="ctl" role="group" aria-label="View"><button data-map="0" id="vt0" class="on" aria-pressed="true">Timeline</button><button data-map="1" id="vt1" aria-pressed="false">Apron map</button></div></div><div class="key" id="tlkey"><span><i style="background:var(--blk-ok)"></i>stand time</span><span><i style="background:color-mix(in srgb,var(--ink) 30%,var(--blk-ok))"></i>turnaround crew</span><span><i style="background:var(--blk-bad)"></i>rule broken</span><span><i style="background:repeating-linear-gradient(135deg,var(--shut) 0 4px,var(--bad) 4px 6px)"></i>closed</span></div><div class="tl-scroll"><div class="tl" id="tl"></div></div></div>
     <div class="col a-ed"><div class="panel" id="editor"></div><div class="panel"><details id="how"><summary>Rules and scoring</summary><ul id="rules"></ul></details></div></div>
   </div>
 </div>
@@ -557,7 +565,7 @@ function load(n){
   if(!plan||sc.flights.some(f=>!plan[f.id])){plan=blank();
     if(!lvl)sc.flights.forEach((f,i)=>plan[f.id]={stand:SHEET.stand[i]||null,gate:SHEET.gate[i]||null,desks:SHEET.desks[i],delay:SHEET.delay[i]||0,auto:false});}
   hist=[];hints=store.get('mw-hints-'+sc.id)||0;
-  sel=sc.flights[0].id;result=null;soln=null;view='mine';tg=store.get('mw-tg5-'+sc.id);
+  sel=sc.flights[0].id;mapT=null;result=null;soln=null;view='mine';tg=store.get('mw-tg5-'+sc.id);
   const ne=sc.events.length,f0=sc.flights[0],notes=(lvl?sc.notes:[`Loaded with the plan from your spreadsheet so far. Red means a clash or a rule broken. Stands open at 07:00, but the first flight needs its stand from ${hhmm(f0.dep-standBefore(f0))}.`])
     .concat([`${ne} disruption${ne>1?'s':''} will be announced during the shift. Each one pauses the clock for ${decideSecs()} seconds while you re-plan.`]);
   $('note').hidden=false;$('note').innerHTML=(lvl?'<b>Notices for shift '+lvl+'.</b> ':'')+notes.map(esc).join(' ');
@@ -691,6 +699,8 @@ function bar(f,kind,w,PL,FR,top){
   return `<button class="blk${bad?' bad':''}${f.id===sel?' sel':''}${fz?' gone':L.state!=='free'?' locked':''}" data-f="${f.id}" data-k="${kind}" style="left:${pc(w[0])};width:calc(${pc(w[1])} - ${pc(w[0])})${top!==undefined?`;top:${top}px;bottom:auto;height:34px`:''}" title="${esc(tip)}">${crew}<span>${label}</span></button>`;
 }
 function renderTL(){
+  $('tlkey').hidden=mapView;$('vt0').className=mapView?'':'on';$('vt1').className=mapView?'on':'';$('vt0').setAttribute('aria-pressed',!mapView);$('vt1').setAttribute('aria-pressed',mapView);
+  if(mapView){$('tl').innerHTML=renderMap();return}
   const PL=VP(),FR=FRZ()||{};
   const row=(kind,x,thin)=>{const blks=known.flights.filter(f=>PL[f.id][kind]===x.id).map(f=>bar(f,kind,ev.win[f.id][kind],PL,FR)).join('');
     const shuts=(x.shuts||[]).map(c=>`<div class="shut hatch" title="Closed ${hhmm(c[0])}–${hhmm(c[1])}" style="left:${pc(c[0])};width:calc(${pc(c[1])} - ${pc(c[0])})"></div>`).join('');
@@ -705,6 +715,43 @@ function renderTL(){
   <div class="grp">Gates · held from ${R.gateBefore} min before to ${R.after} after · closes ${R.gateClose} min before</div>${known.gates.map(x=>row('gate',x,true)).join('')}
   ${known.teams?chart(ev.teamLoad,known.teams,ev.teamPeak,'Turnaround crews'):''}${chart(ev.load,known.desks,ev.peak,'Check-in desks')}${axis}${run?`<div class="cursor" id="cur"></div>`:''}`;
   placeCursor();
+}
+// The apron map: the same plan seen from above at one moment. Pier and gates along the top, stands below,
+// each with the aircraft on it at that time and a line to its gate. Click an aircraft to select it, then a stand or gate to move it.
+let mapView=false,mapT=null;
+const PLANE='M0,-60C6,-60 8,-50 8,-40L8,-12 62,14 62,24 8,12 8,40 22,52 22,60 0,55 -22,60 -22,52 -8,40 -8,12 -62,24 -62,14 -8,-12 -8,-40C-8,-50 -6,-60 0,-60Z';
+function mapTime(){return run?run.c:result?(mapT??T0+60):(mapT??Math.max(T0,Math.min(...known.flights.map(f=>ev.win[f.id].stand[0]))))}
+function renderMap(){
+  const PL=VP(),FR=FRZ()||{},t=mapTime(),W=900,nS=known.stands.length,nG=known.gates.length,sw=(W-40)/nS,gw=(W-140)/nG;
+  const open=(x)=>t>=x.from&&t<x.to&&!(x.shuts||[]).some(c=>t>=c[0]&&t<c[1]);
+  const gx={};known.gates.forEach((g,i)=>gx[g.id]=120+gw*i+gw/2);
+  const on=(kind,id)=>known.flights.filter(f=>PL[f.id][kind]===id&&!FR[f.id]&&ev.win[f.id][kind][0]<=t&&t<ev.win[f.id][kind][1]);
+  let o=`<svg viewBox="0 0 ${W} 470" role="img" aria-label="Apron at ${hhmm(t)}"><rect x="20" y="16" width="${W-40}" height="64" rx="6" fill="var(--board)"/><text x="36" y="55" font-family="Barlow Condensed" font-weight="700" font-size="20" fill="var(--board-ink)" letter-spacing="2">PIER</text>`;
+  for(const g of known.gates){const fl=on('gate',g.id),x=gx[g.id],shut=g.from!==undefined&&!open(g),bad=fl.length>1||fl.some(f=>ev.flights[f.id].issues.some(i=>i.startsWith('Gate ')));
+    const fill=shut?'var(--shut)':bad?'var(--blk-bad)':fl.length?'var(--blk-ok)':'var(--board-line)',ink=fl.length||shut||bad?'var(--ink)':'var(--board-ink)';
+    o+=`<g data-row="gate" data-v="${g.id}"><title>Gate ${g.id} (${g.cls})${fl.length?': '+fl.map(f=>f.id).join(', '):': free'}</title><rect x="${x-34}" y="26" width="68" height="44" rx="4" fill="${fill}" stroke="${bad?'var(--bad)':'none'}" stroke-width="2"/><text x="${x}" y="46" text-anchor="middle" font-family="B612 Mono" font-size="15" font-weight="700" fill="${ink}">${g.id}</text><text x="${x}" y="62" text-anchor="middle" font-family="B612 Mono" font-size="10" fill="${ink}">${fl.length?fl.map(f=>f.id).join(' '):g.cls}</text></g>`}
+  known.stands.forEach((x,i)=>{const cx=20+sw*i+sw/2,fl=on('stand',x.id),shut=!open(x),bad=fl.length>1;
+    o+=`<g data-row="stand" data-v="${x.id}"><title>Stand ${x.id} (${x.cls})${shut?' closed':''}</title><rect x="${cx-sw/2+6}" y="120" width="${sw-12}" height="290" rx="4" fill="${shut?'var(--shut)':'var(--surface)'}" stroke="${bad?'var(--bad)':'var(--line)'}" stroke-width="2"${shut?' stroke-dasharray="8 6"':''}/><text x="${cx}" y="144" text-anchor="middle" font-family="Barlow Condensed" font-weight="700" font-size="20" fill="var(--ink)">${x.id} <tspan font-size="14" fill="var(--muted)">${x.cls}</tspan></text><line x1="${cx}" y1="156" x2="${cx}" y2="400" stroke="var(--accent)" stroke-width="2" pointer-events="none"/>`;
+    if(shut){const sh=(x.shuts||[]).find(c=>t>=c[0]&&t<c[1]),why=t<x.from?'opens '+hhmm(x.from):sh?'closed to '+hhmm(sh[1]):'closed';
+      o+=`<text x="${cx}" y="280" text-anchor="middle" font-family="B612 Mono" font-size="12" fill="var(--muted)">${why}</text>`}
+    else if(!fl.length){const nx=known.flights.filter(f=>PL[f.id].stand===x.id&&!FR[f.id]&&ev.win[f.id].stand[0]>t).sort((a,b)=>ev.win[a.id].stand[0]-ev.win[b.id].stand[0])[0];
+      o+=`<text x="${cx}" y="272" text-anchor="middle" font-family="B612 Mono" font-size="13" fill="var(--muted)">free</text>${nx?`<text x="${cx}" y="292" text-anchor="middle" font-family="B612 Mono" font-size="11" fill="var(--muted)">${nx.id} at ${hhmm(ev.win[nx.id].stand[0])}</text>`:''}`}
+    fl.forEach((f,k)=>{const r=ev.flights[f.id],sc0={S:.55,M:.7,L:.9}[f.cls],y=250+k*26,dx=k*14,badF=!r.ok;
+      const phase=t>=r.dep-R.gateClose?'gate closed':t>=r.dep-R.gateBefore?'boarding':known.teams&&t>=r.dep-f.svc?'crew on':'turnaround';
+      const fill=badF?'var(--blk-bad)':phase==='boarding'||phase==='gate closed'?'var(--blk-ok)':'color-mix(in srgb,var(--accent) 45%,var(--surface))';
+      if(PL[f.id].gate&&gx[PL[f.id].gate]!==undefined)o+=`<path d="M${gx[PL[f.id].gate]},70 L${gx[PL[f.id].gate]},96 L${cx},96 L${cx},158" fill="none" stroke="${r.issues.some(i=>i.startsWith('Gate '))?'var(--bad)':'var(--ink)'}" stroke-width="3"${r.issues.some(i=>i.startsWith('Gate '))?' stroke-dasharray="6 5"':''}/>`;
+      o+=`<g data-f="${f.id}"><title>${f.id} ${esc(f.dest)} · departs ${hhmm(r.dep)} · ${phase}${r.issues.length?' · '+esc(r.issues.join('; ')):''}</title><g transform="translate(${cx+dx},${y}) scale(${sc0})"><path d="${PLANE}" fill="${fill}" stroke="${f.id===sel?'var(--accent)':badF?'var(--bad)':'var(--ink)'}" stroke-width="${f.id===sel?7:badF?4:2}"/></g>
+      <text x="${cx}" y="${342+k*36}" text-anchor="middle" font-family="B612 Mono" font-size="13" font-weight="700" fill="var(--ink)">${f.id}${f.high?'★':''}</text><text x="${cx}" y="${358+k*36}" text-anchor="middle" font-family="B612 Mono" font-size="11" fill="${badF?'var(--bad)':'var(--muted)'}">${badF?'problem':phase} · ${hhmm(r.dep)}</text></g>`});
+    o+='</g>'});
+  o+=`<line x1="20" y1="440" x2="${W-20}" y2="440" stroke="var(--accent)" stroke-width="3" stroke-dasharray="14 10"/><text x="${W-20}" y="462" text-anchor="end" font-family="B612 Mono" font-size="12" fill="var(--muted)">TAXIWAY</text></svg>`;
+  const wait=known.flights.filter(f=>!PL[f.id].stand&&!FR[f.id]);
+  const sf=known.flights.find(x=>x.id===sel),sw0=sf&&ev.win[sf.id].stand;
+  const away=sf&&!FR[sf.id]&&PL[sf.id].stand&&!(sw0[0]<=t&&t<sw0[1]);
+  return `<div class="map">${o}
+  ${run?`<div class="scrub"><b>${hhmm(Math.floor(t))}</b><span>Live: the map follows the shift clock.</span></div>`:`<div class="scrub"><label for="mapt">Time</label><input type="range" id="mapt" min="${T0}" max="${T1-10}" step="5" value="${Math.round(t/5)*5}"><b>${hhmm(t)}</b></div>`}
+  ${away?`<div class="hint">${sf.id} is on ${PL[sf.id].stand} from ${hhmm(sw0[0])} to ${hhmm(sw0[1])}. ${run?'':`<button data-jump="${sw0[0]}">Show ${hhmm(sw0[0])}</button>`}</div>`:''}
+  ${wait.length?`<div class="waiting">Needs a stand:${wait.map(f=>`<button class="chip${f.id===sel?' on':''}" data-f="${f.id}">${f.id}</button>`).join('')}<span>select one, then click a stand</span></div>`:''}
+  <div class="hint">Click an aircraft to select it, then click a stand or gate to move it there. The timeline shows clashes later in the shift.</div></div>`;
 }
 function placeCursor(){const cur=$('cur');if(cur&&run)cur.style.left=`calc(48px + (100% - 48px) * ${(run.c-T0)/SPAN})`}
 function renderLog(){
@@ -839,7 +886,7 @@ function tick(ts){
       const changed=freeze();
       if(run.c>=T1||Object.keys(run.frozen).length===sc.flights.length){finish();return}
       if(changed)render();
-      else{const k=Math.floor(run.c);if(k!==run.k){run.k=k;known=scenarioAt(sc,run.c);ev=evaluate(known,run.plan);if(!drag){renderBoard();renderScore()}const cl=$('clock');if(cl)cl.textContent=hhmm(k)}}
+      else{const k=Math.floor(run.c);if(k!==run.k){run.k=k;known=scenarioAt(sc,run.c);ev=evaluate(known,run.plan);if(!drag){renderBoard();renderScore();if(mapView)renderTL()}const cl=$('clock');if(cl)cl.textContent=hhmm(k)}}
       placeCursor();
     }
   }
@@ -879,9 +926,11 @@ $('tl').addEventListener('pointerup',e=>endDrag(e,false));
 $('tl').addEventListener('pointercancel',e=>endDrag(e,true));
 
 document.addEventListener('click',e=>{
-  if(noClick)return;const b=e.target.closest('button,[data-row]');if(!b)return;const d=b.dataset,p=P()[sel];
+  if(noClick)return;const b=e.target.closest('button,[data-row],[data-f]');if(!b)return;const d=b.dataset,p=P()[sel];
   if(result&&(d.set||d.desk||d.delay||d.row||d.fix))return;
-  if(d.f){if(sel!==d.f)sugMsg='';sel=d.f;render()}
+  if(d.map!==undefined){mapView=d.map==='1';renderTL()}
+  else if(d.jump){mapT=+d.jump;renderTL()}
+  else if(d.f){if(sel!==d.f)sugMsg='';sel=d.f;render()}
   else if(d.set)set(sel,{[d.set]:p[d.set]===d.v?null:d.v});
   else if(d.desk)set(sel,{desks:p.desks+ +d.desk});
   else if(d.auto)set(sel,{auto:p.auto===false});
@@ -906,6 +955,7 @@ document.addEventListener('click',e=>{
   else if(b.id==='abandon'){run=null;result=null;render()}
 });
 $('scn').addEventListener('change',e=>load(e.target.value));
+$('tl').addEventListener('input',e=>{if(e.target.id==='mapt'){mapT=+e.target.value;renderTL();const r=$('mapt');r&&r.focus()}});
 document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key.toLowerCase()==='z'&&!/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)){e.preventDefault();undo()}});
 $('rules').innerHTML=[`Aircraft classes run S, M, L. A bigger stand or gate takes a smaller aircraft, never the reverse.`,
 `A stand is held for the turnaround: from ${R.stand.S} minutes before departure for class S, ${R.stand.M} for M and ${R.stand.L} for L, to ${R.after} after. A gate is held from ${R.gateBefore} before to ${R.after} after, and closes to passengers ${R.gateClose} minutes before departure. No overlaps, and nothing while a facility is shut (grey, or hatched when closed by a disruption).`,
