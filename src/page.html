@@ -67,7 +67,7 @@ select{background:var(--surface);border:1px solid var(--line);border-radius:4px;
 .tl{min-width:700px;position:relative;font:11px var(--data)}
 .tl .r{display:grid;grid-template-columns:48px minmax(0,1fr);align-items:stretch}
 .tl .lab{padding:6px 0;color:var(--muted);white-space:nowrap}.tl .lab b{color:var(--ink)}
-.tl .trk{position:relative;height:28px;border-top:1px solid var(--line);background:repeating-linear-gradient(90deg,transparent 0,transparent calc(100%/12 - 1px),var(--line) calc(100%/12 - 1px),var(--line) calc(100%/12));cursor:pointer}
+.tl .trk{position:relative;height:28px;border-top:1px solid var(--line);background:repeating-linear-gradient(90deg,transparent 0,transparent calc(100%/14 - 1px),var(--line) calc(100%/14 - 1px),var(--line) calc(100%/14));cursor:pointer}
 .tl .shut{position:absolute;top:0;bottom:0;background:var(--shut);opacity:.9}
 .tl .blk{position:absolute;top:3px;bottom:3px;border:0;border-radius:2px;padding:0 4px;min-height:0;font:11px/22px var(--data);overflow:hidden;white-space:nowrap;text-align:left;background:var(--blk-ok);color:var(--blk-ok-ink)}
 .tl .blk.bad{background:var(--blk-bad);color:var(--blk-bad-ink)}
@@ -131,8 +131,8 @@ details{font-size:14px}summary{cursor:pointer;font-weight:600}details ul{margin:
 </script>
 <script>
 (function(){
-const {RULES:R,CLS,hhmm,evaluate,housePlan,minDesks,scenarioAt,describe,lockAt}=Core, $=id=>document.getElementById(id);
-const T0=390,T1=750,SPAN=T1-T0,pc=m=>((Math.max(T0,Math.min(T1,m))-T0)/SPAN*100).toFixed(3)+'%';
+const {RULES:R,CLS,hhmm,evaluate,housePlan,minDesks,scenarioAt,describe,lockAt,standBefore,failCost,maxDelayOf}=Core, $=id=>document.getElementById(id);
+const T0=330,T1=750,SPAN=T1-T0,pc=m=>((Math.max(T0,Math.min(T1,m))-T0)/SPAN*100).toFixed(3)+'%';
 const MS_PER_MIN=90;
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const num=n=>n.toLocaleString('en-GB'), clone=o=>JSON.parse(JSON.stringify(o));
@@ -142,11 +142,12 @@ const SHEET={stand:['S2','S1','S3','S4','S5','S2','S1','S6','S3','S4','S5','S2',
 let sc,plan,sel,ev,known,tg=null,lvl=0,run=null,result=null,drag=null,dirty=false,noClick=false;
 let progress=store.get('mw-progress')||0,rolls=store.get('mw-rolls')||{},medals=store.get('mw-medals')||{};
 const MED=['','Bronze','Silver','Gold'];
-const decideSecs=()=>lvl<=1?60:lvl<=4?45:lvl<=7?35:25;
+const decideSecs=()=>Core.decideSecs(lvl);
 const P=()=>run?run.plan:plan;
 const now=()=>run?run.c:-Infinity;
 
 function options(){let h='<option value="0">Training day (the brief)</option>';
+  if(medals[0])h=`<option value="0">Training day (the brief) · ${MED[medals[0]]}</option>`;
   for(let n=1;n<=progress+1;n++)h+=`<option value="${n}">Shift ${n}: ${Core.twist(n)}${medals[n]?' · '+MED[medals[n]]:''}</option>`;
   $('scn').innerHTML=h;$('scn').value=lvl}
 function blank(){const p={};sc.flights.forEach(f=>p[f.id]={stand:null,gate:null,desks:1,delay:0,auto:true});return autoDesks(p),p}
@@ -164,12 +165,12 @@ function load(n){
   if(!plan||sc.flights.some(f=>!plan[f.id])){plan=blank();
     if(!lvl)sc.flights.forEach((f,i)=>plan[f.id]={stand:SHEET.stand[i]||null,gate:SHEET.gate[i]||null,desks:SHEET.desks[i],delay:SHEET.delay[i]||0,auto:false});}
   hist=[];hints=store.get('mw-hints-'+sc.id)||0;
-  sel=sc.flights[0].id;result=null;soln=null;view='mine';tg=store.get('mw-tg4-'+sc.id);
-  const ne=sc.events.length,notes=(lvl?sc.notes:['Loaded with the plan from your spreadsheet so far. Red means a clash or a rule broken. Stands open at 07:00, but the first flights need theirs from 06:45.'])
+  sel=sc.flights[0].id;result=null;soln=null;view='mine';tg=store.get('mw-tg5-'+sc.id);
+  const ne=sc.events.length,f0=sc.flights[0],notes=(lvl?sc.notes:[`Loaded with the plan from your spreadsheet so far. Red means a clash or a rule broken. Stands open at 07:00, but the first flight needs its stand from ${hhmm(f0.dep-standBefore(f0))}.`])
     .concat([`${ne} disruption${ne>1?'s':''} will be announced during the shift. Each one pauses the clock for ${decideSecs()} seconds while you re-plan.`]);
   $('note').hidden=false;$('note').innerHTML=(lvl?'<b>Notices for shift '+lvl+'.</b> ':'')+notes.map(esc).join(' ');
   $('house').hidden=!!lvl;$('reroll').hidden=!lvl;options();render();
-  if(!tg)setTimeout(()=>{const id=sc.id,t=Core.targets(sc);store.set('mw-tg4-'+id,t);if(sc.id!==id)return;
+  if(!tg)setTimeout(()=>{const id=sc.id,t=Core.targets(sc);store.set('mw-tg5-'+id,t);if(sc.id!==id)return;
     // A wave where even the solver cannot beat the house by 20 points is no test: deal another.
     if(lvl&&t.gold-t.house<20&&(load.skips=(load.skips||0)+1)<6){rolls[lvl]=(rolls[lvl]||0)+1;store.set('mw-rolls',rolls);load(lvl);return}
     load.skips=0;tg=t;render()},30);
@@ -195,7 +196,7 @@ function suggest(id){
   const L=lockOf(id);if(L.state!=='free')return;const fixed={};
   for(const f of known.flights)fixed[f.id]=f.id===id?{minDelay:L.minDelay,desks:L.desks}:{all:true,plan:P()[f.id]};
   const hp=housePlan(known,[known.flights.find(x=>x.id===id)],null,fixed)[id];
-  if(!hp.stand){sugMsg=`No fix within ${R.maxDelay} minutes without moving another flight. Try freeing a stand or gate first.`;render();return}
+  if(!hp.stand){sugMsg=`No fix within ${maxDelayOf(known.flights.find(x=>x.id===id))} minutes without moving another flight. Try freeing a stand or gate first.`;render();return}
   sugMsg='';setHints(hints+1);set(id,{stand:hp.stand,gate:hp.gate,delay:hp.delay,desks:hp.desks});
 }
 let sugMsg='',hints=0;const HINT=10;
@@ -207,8 +208,9 @@ function status(f,r){
   if(!run)return r.ok?['ok',r.delay?'Delay +'+r.delay:'On time']:['bad',r.issues.length+' issue'+(r.issues.length>1?'s':'')];
   const c=run.c;
   if(!r.ok)return['bad','At risk'];
+  if(c>=r.dep-R.gateClose)return['wait','Gate closed'];
   if(c>=r.dep-R.gateBefore)return['wait','Boarding'];
-  if(c>=r.dep-R.standBefore)return['wait','On stand'];
+  if(c>=r.dep-standBefore(f))return['wait','On stand'];
   if(c>=f.open)return['wait','Check-in'];return['wait',r.delay?'Delay +'+r.delay:'Scheduled'];
 }
 function renderBoard(){
@@ -216,7 +218,8 @@ function renderBoard(){
   known.flights.map(f=>{const r=ev.flights[f.id],[k,txt]=status(f,r);
     return `<button class="row${f.id===sel?' sel':''}" data-f="${f.id}" aria-pressed="${f.id===sel}"><span>${hhmm(r.dep)}</span><span class="${f.high?'hi':''}">${f.id}</span><span class="dest">${esc(f.dest)}${f.late?' (late in)':''}</span><span class="cls dim">${f.cls}</span><span>${r.stand||'<span class="dim">--</span>'}</span><span>${r.gate||'<span class="dim">--</span>'}</span><span class="st ${k}">${txt}</span></button>`}).join('');
 }
-function medal(s){return !tg||s<=tg.house?0:s>=tg.gold?3:s>=tg.silver?2:1}
+// Matching gold always earns gold, even on a wave where gold and the house controller score the same.
+function medal(s){return !tg?0:s>=tg.gold?3:s<=tg.house?0:s>=tg.silver?2:1}
 function renderScore(){
   let s,label;
   if(result){s=result.score;label='Final score'}
@@ -237,10 +240,10 @@ function renderEditor(){
   ${lockMsg?`<div class="lock">${lockMsg}</div>`:''}
   ${result&&soln?`<div class="cmp">You: ${facTxt(run0.plan[f.id])}${run0.frozen[f.id].ok?'':' (cancelled)'}<br>${MED[medal(soln.score)]||'Best'} plan: ${facTxt(soln.plan[f.id])}${solFrozen[f.id]&&!solFrozen[f.id].ok?' (cancelled)':''}</div>`:''}
   <div class="fld"><span class="l">Stand</span><div class="chips">${chips('stand',known.stands)}<em class="need">held ${hhmm(w.stand[0])} to ${hhmm(w.stand[1])}</em></div></div>
-  <div class="fld"><span class="l">Gate</span><div class="chips">${chips('gate',known.gates)}<em class="need">held ${hhmm(w.gate[0])} to ${hhmm(w.gate[1])}</em></div></div>
+  <div class="fld"><span class="l">Gate</span><div class="chips">${chips('gate',known.gates)}<em class="need">held ${hhmm(w.gate[0])} to ${hhmm(w.gate[1])} · gate closes ${hhmm(r.dep-R.gateClose)}</em></div></div>
   <div class="fld"><span class="l">Desks</span><div class="step"><button data-desk="-1" aria-label="Fewer desks" ${p.desks<=1||deskLock?'disabled':''}>−</button><b>${p.desks}</b><button data-desk="1" aria-label="More desks" ${p.desks>=R.maxDesks||deskLock?'disabled':''}>+</button><button class="chip${p.auto!==false?' on':''}" data-auto="1" ${deskLock?'disabled':''} aria-pressed="${p.auto!==false}" title="Automatic: the fewest desks that finish check-in in time">Auto</button><em>check-in ${hhmm(f.open)} to ${hhmm(r.ciEnd)}, closes ${hhmm(r.close)} · needs at least ${minDesks(known,f,p.delay)}</em></div></div>
-  <div class="fld"><span class="l">Delay</span><div class="step"><button data-delay="-5" ${p.delay-1<L.minDelay||fz?'disabled':''}>−5</button><button data-delay="-1" ${p.delay-1<L.minDelay||fz?'disabled':''}>−1</button><b>+${p.delay}</b><button data-delay="1" ${p.delay>=R.maxDelay||fz?'disabled':''}>+1</button><button data-delay="5" ${p.delay>=R.maxDelay||fz?'disabled':''}>+5</button><em>first ${R.grace} min free, then ${f.high?R.delayHigh:R.delayNormal} pt${f.high?'s':''} a minute${p.delay>R.grace?` · costing ${Core.delayCost(f,p.delay)}`:''}</em></div></div>
-  ${known.teams?`<div class="fld"><span class="l">Service</span><em class="need">needs a ground team ${hhmm(r.dep-f.svc)} to ${hhmm(r.dep)} (${f.svc} min before departure) · only ${known.teams} teams work at once; delay the flight to move its service later</em></div>`:''}
+  <div class="fld"><span class="l">Delay</span><div class="step"><button data-delay="-5" ${p.delay-1<L.minDelay||fz?'disabled':''}>−5</button><button data-delay="-1" ${p.delay-1<L.minDelay||fz?'disabled':''}>−1</button><b>+${p.delay}</b><button data-delay="1" ${p.delay>=R.maxDelay||fz?'disabled':''}>+1</button><button data-delay="5" ${p.delay>=R.maxDelay||fz?'disabled':''}>+5</button><em>first ${R.grace} min free, then ${f.high?R.delayHigh:R.delayNormal} pt${f.high?'s':''} a minute${p.delay>R.grace?` · costing ${Core.delayCost(f,p.delay)}`:''}${f.slotMax!==undefined?` · ATC slot: at most +${f.slotMax}`:''}${f.crew!==undefined?` · crew out of hours after +${f.crew}`:''}</em></div></div>
+  ${known.teams?`<div class="fld"><span class="l">Crew</span><em class="need">needs a turnaround crew ${hhmm(r.dep-f.svc)} to ${hhmm(r.dep)} (its last ${f.svc} min) · ${known.teams} crews on duty; delay the flight to move this later</em></div>`:''}
   ${fz?'':`<ul class="issues">${r.issues.length?r.issues.map(i=>'<li>'+esc(i)+'</li>').join(''):`<li class="fine">Good to go, worth ${r.points} points.</li>`}</ul>`}
   ${!fz&&!result&&r.issues.length&&L.state==='free'?`<div class="ctl"><button id="suggest">Suggest a fix (−${HINT} points)</button>${sugMsg?`<span class="lock">${esc(sugMsg)}</span>`:''}</div>`:''}`;
 }
@@ -250,26 +253,26 @@ function chart(load,cap,peak,what){
   d+=`L${SPAN} 60Z`;
   return `<div class="grp">${what} in use · limit ${cap}</div><div class="r"><div class="lab">peak <b style="color:${peak>cap?'var(--bad)':'inherit'}">${peak}</b></div><svg viewBox="0 0 ${SPAN} 60" preserveAspectRatio="none" role="img" aria-label="${what} in use over time, peak ${peak} of ${cap}"><path d="${d}" fill="var(--blk-ok)"/>${over}<line x1="0" x2="${SPAN}" y1="${y(cap)}" y2="${y(cap)}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/></svg></div>`;
 }
-// Ground teams: one lane per team. Each operating flight's service (the last minutes before departure)
-// goes to the first team free; a flight no team can take sits in a red lane.
+// Turnaround crews: one lane per crew. Each operating flight's last minutes before departure go to the
+// first crew free; a flight no crew can take sits in a red lane.
 function teamLanes(PL,FR){
   const fl=known.flights.filter(f=>PL[f.id].stand&&PL[f.id].gate).map(f=>({f,a:ev.flights[f.id].dep-f.svc,b:ev.flights[f.id].dep})).sort((x,y)=>x.a-y.a);
   const lanes=Array.from({length:known.teams},()=>[]),over=[];
   for(const x of fl){const i=lanes.findIndex(l=>!l.length||l[l.length-1].b<=x.a);if(i>=0){lanes[i].push(x);continue}
     const j=over.findIndex(l=>l[l.length-1].b<=x.a);j<0?over.push([x]):over[j].push(x)}
-  const clash=id=>ev.flights[id].issues.some(i=>i.includes('ground team'));
-  const bar=(x,bad)=>`<button class="blk${bad||clash(x.f.id)?' bad':''}${x.f.id===sel?' sel':''}${FR[x.f.id]?' gone':lockOf(x.f.id).state!=='free'?' locked':''}" data-f="${x.f.id}" data-k="svc" style="left:${pc(x.a)};width:calc(${pc(x.b)} - ${pc(x.a)})" title="${x.f.id} service ${hhmm(x.a)}–${hhmm(x.b)} · drag sideways to change delay">${x.f.id}</button>`;
+  const clash=id=>ev.flights[id].issues.some(i=>i.includes('turnaround crew'));
+  const bar=(x,bad)=>`<button class="blk${bad||clash(x.f.id)?' bad':''}${x.f.id===sel?' sel':''}${FR[x.f.id]?' gone':lockOf(x.f.id).state!=='free'?' locked':''}" data-f="${x.f.id}" data-k="svc" style="left:${pc(x.a)};width:calc(${pc(x.b)} - ${pc(x.a)})" title="${x.f.id} crew needed ${hhmm(x.a)}–${hhmm(x.b)} · drag sideways to change delay">${x.f.id}</button>`;
   const lane=(lab,xs,bad)=>`<div class="r"><div class="lab"><b>${lab}</b></div><div class="trk svc${bad?' over':''}">${xs.map(x=>bar(x,bad)).join('')}</div></div>`;
-  return `<div class="grp">Ground teams · each flight needs one for its last ${Math.min(...known.flights.map(f=>f.svc))}–${Math.max(...known.flights.map(f=>f.svc))} min before departure</div>${lanes.map((l,i)=>lane('Team '+(i+1),l)).join('')}${over.map(l=>lane('No team',l,true)).join('')}`;
+  return `<div class="grp">Turnaround crews · each flight needs one for its last ${Math.min(...known.flights.map(f=>f.svc))}–${Math.max(...known.flights.map(f=>f.svc))} min before departure</div>${lanes.map((l,i)=>lane('Crew '+(i+1),l)).join('')}${over.map(l=>lane('No crew',l,true)).join('')}`;
 }
 function renderTL(){
   const PL=VP(),FR=FRZ()||{};const row=(kind,x)=>{const blks=known.flights.filter(f=>PL[f.id][kind]===x.id).map(f=>{const w=ev.win[f.id][kind],r=ev.flights[f.id],K=kind[0].toUpperCase()+kind.slice(1)+' ',bad=r.issues.some(i=>i.startsWith(K)),fz=FR[f.id],L=lockOf(f.id);
-      return `<button class="blk${bad&&!fz?' bad':''}${f.id===sel?' sel':''}${fz?' gone':L.state!=='free'?' locked':''}" data-f="${f.id}" data-k="${kind}" style="left:${pc(w[0])};width:calc(${pc(w[1])} - ${pc(w[0])})" title="${f.id} ${hhmm(w[0])}–${hhmm(w[1])} · drag to move">${f.id}</button>`}).join('');
+      return `<button class="blk${bad&&!fz?' bad':''}${f.id===sel?' sel':''}${fz?' gone':L.state!=='free'?' locked':''}" data-f="${f.id}" data-k="${kind}" style="left:${pc(w[0])};width:calc(${pc(w[1])} - ${pc(w[0])})" title="${f.id} ${hhmm(w[0])}–${hhmm(w[1])}${kind==='gate'?' · gate closes '+hhmm(r.dep-R.gateClose):''} · drag to move">${f.id}</button>`}).join('');
     const shuts=(x.shuts||[]).map(c=>`<div class="shut hatch" title="Closed ${hhmm(c[0])}–${hhmm(c[1])}" style="left:${pc(c[0])};width:calc(${pc(c[1])} - ${pc(c[0])})"></div>`).join('');
     return `<div class="r"><div class="lab"><b>${x.id}</b> ${x.cls}</div><div class="trk" data-row="${kind}" data-v="${x.id}"><div class="shut" style="left:0;width:${pc(x.from)}"></div><div class="shut" style="left:${pc(x.to)};right:0"></div>${shuts}${blks}</div></div>`};
   let ax='';for(let m=T0;m<T1;m+=30)ax+=`<i style="left:${pc(m)}">${hhmm(m)}</i>`;
   const axis=`<div class="r"><div></div><div class="axis">${ax}</div></div>`;
-  $('tl').innerHTML=`${axis}<div class="grp">Stands · held from 50 min before to 10 after</div>${known.stands.map(x=>row('stand',x)).join('')}<div style="height:10px"></div>${axis}<div class="grp">Gates · held from 35 min before to 10 after</div>${known.gates.map(x=>row('gate',x)).join('')}
+  $('tl').innerHTML=`${axis}<div class="grp">Stands · held for the turnaround: ${R.stand.S} min before departure (S), ${R.stand.M} (M) or ${R.stand.L} (L), to ${R.after} after</div>${known.stands.map(x=>row('stand',x)).join('')}<div style="height:10px"></div>${axis}<div class="grp">Gates · held from ${R.gateBefore} min before to ${R.after} after · gate closes ${R.gateClose} min before</div>${known.gates.map(x=>row('gate',x)).join('')}
   ${chart(ev.load,known.desks,ev.peak,'Check-in desks')}${known.teams?teamLanes(PL,FR):''}${axis}${run?`<div class="cursor" id="cur"></div>`:''}`;
   placeCursor();
 }
@@ -292,11 +295,20 @@ function renderBar(){
 function debrief(){
   const r=result,m=medal(r.score),fl=known.flights;
   const loss=fl.map(f=>{const z=run0.frozen[f.id],max=f.high?R.ptsHigh:R.ptsNormal;
-    return z.ok?{f,lost:max-z.points,why:z.delay?`held ${z.delay} min, ${z.delay-R.grace} past the 15 free${f.high?' (priority, double rate)':''}`:''}:{f,lost:max+R.failPenalty,why:'cancelled: '+(z.issues[0]||'')}}).filter(x=>x.lost>0).sort((a,b)=>b.lost-a.lost).slice(0,3);
+    return z.ok?{f,lost:max-z.points,why:z.delay?`held ${z.delay} min, ${z.delay-R.grace} past the 15 free${f.high?' (priority, double rate)':''}`:''}:{f,lost:max+failCost(f),why:'cancelled: '+(z.issues[0]||'')}}).filter(x=>x.lost>0).sort((a,b)=>b.lost-a.lost).slice(0,3);
   const issues=fl.map(f=>run0.frozen[f.id]).filter(z=>!z.ok).flatMap(z=>z.issues);
   const prioDelay=fl.filter(f=>f.high&&run0.frozen[f.id].ok).reduce((a,f)=>a+Math.max(0,run0.frozen[f.id].delay-R.grace),0);
+  // Delay by cause, in IATA delay codes: what a real ops log would record for each minute.
+  const code={93:0,81:0,15:0,87:0};
+  for(const f of fl){const z=run0.frozen[f.id];if(!z.ok)continue;code[87]+=z.delay;
+    for(const e of sc.events||[])if(e.flight===f.id&&e.at<=z.dep){if(e.kind==='late')code[93]+=e.mins;else if(e.kind==='slot')code[81]+=e.mins;else if(e.kind==='offload')code[15]+=e.mins}}
+  const CODE={93:'late inbound aircraft',81:'ATC departure slot',15:'bag offload',87:'your holds for stand, gate, desk or crew limits'};
+  const codes=Object.keys(CODE).filter(k=>code[k]).map(k=>`<li><b>${k}</b> ${CODE[k]}: ${code[k]} min</li>`).join('');
   const tip=issues.some(i=>/clashes/.test(i))?'Two flights ended up on the same stand or gate. After each disruption, look for red blocks on the timeline before pressing Resume.'
     :issues.some(i=>/closed/.test(i))?'A flight was left on a stand or gate after it was closed. When a closure is announced, move every flight whose bar crosses the hatched area.'
+    :issues.some(i=>/Crew out of hours/.test(i))?'A crew ran out of duty hours. When a crew is short of hours, take that flight off the stand plan first and hold other flights instead.'
+    :issues.some(i=>/ATC slot/.test(i))?'A flight missed its ATC slot. Once a slot is given, the flight must leave inside its 15-minute window, so clear its stand and crew for that time.'
+    :issues.some(i=>/turnaround crew/.test(i))?'Too many flights needed a turnaround crew at once. Hold one of them a few minutes so its last minutes before departure fall after another flight has left.'
     :issues.some(i=>/overruns|Desks over/.test(i))?'Check-in ran out of time or desks. Add desks before check-in opens: once it opens the number is fixed.'
     :issues.length?'Read the reason on each cancelled flight; a delay always costs less than a cancellation.'
     :prioDelay?`Priority flights were held ${prioDelay} chargeable minutes in total at double rate. Where you can, hold a normal flight instead, or keep holds within the 15 free minutes.`
@@ -307,6 +319,7 @@ function debrief(){
   else line=`${m?'Bronze: you beat the house controller, but ':'Not cleared: '}silver is ${num(tg.silver-r.score)} points away.`;
   return `<div class="panel result"><h2>Shift debrief</h2><div class="big">${num(r.score)} points</div><div>${line}</div>
   <div>${r.departed} of ${r.total} flights left, ${r.onTime} on time, ${r.total-r.departed} cancelled, ${r.delayMin} minutes of delay${r.bonus?`, spare-desk bonus ${r.bonus}`:''}${r.hints?`, ${r.hints} suggested fix${r.hints>1?'es':''} (−${r.hints*HINT})`:''}. The house controller, facing the same disruptions, scored ${num(tg.house)}.</div>
+  ${codes?`<div><b>Delay by cause</b> (IATA delay codes, as an ops log records them)<ul class="dl">${codes}</ul></div>`:''}
   ${loss.length?`<div><b>Where the points went</b><ul class="dl">${loss.map(x=>`<li><b>${x.f.id}</b> −${x.lost}: ${esc(x.why)}</li>`).join('')}</ul></div>`:''}
   <div><b>Next time</b> ${esc(tip)}</div>
   ${solPanel(m)}
@@ -327,13 +340,14 @@ function changes(a,b){const out=[];
   return out}
 const cap=(xs,n)=>xs.length>n?xs.slice(0,n).concat([`and ${xs.length-n} more: see the timeline`]):xs;
 function solPanel(m){
-  if(!soln)return `<div class="ctl"><button id="showsol">${m>=2?'Compare with the gold plan':'Show a silver plan'}</button><span class="need" id="solwait" hidden>Working it out…</span></div>`;
-  const e=evaluate(scenarioAt(sc,Infinity),soln.plan),all=known.flights.map(f=>e.flights[f.id]),sm=medal(soln.score);
+  if(!soln)return `<div class="ctl"><button id="showsol">${m>=2?'Compare with the gold plan':'Show a plan that clears the shift'}</button><span class="need" id="solwait" hidden>Working it out…</span></div>`;
+  const e=evaluate(scenarioAt(sc,Infinity),soln.plan),all=known.flights.map(f=>e.flights[f.id]),sm=medal(soln.score),mine=soln.kind==='yours';
+  const name=mine?'Your plan, fixed':`${MED[sm]||'Best'} plan`;
   const start=changes(plan,soln.steps[0].plan);
   const steps=soln.steps.slice(1).map((st,i)=>{const c=changes(soln.steps[i].plan,st.plan);
     return `<li><b>${hhmm(st.at)}</b> ${esc(describe(st.event,sc))}<br>${c.length?'It changed: '+cap(c,5).join('; '):'No change needed.'}</li>`}).join('');
-  return `<div class="sol"><div class="ctl"><button data-view="mine" aria-pressed="${view==='mine'}" class="${view==='mine'?'on':''}">Your shift</button><button data-view="sol" aria-pressed="${view==='sol'}" class="${view==='sol'?'on':''}">${MED[sm]||'Best'} plan</button></div>
-  <div>This plan scored <b>${num(soln.score)}</b>${sm>=2?` (silver needs ${num(tg.silver)})`:''}: ${all.filter(r=>r.ok).length} of ${all.length} flights left, ${all.filter(r=>!r.ok).length} cancelled, ${all.reduce((a,r)=>a+(r.ok?r.delay:0),0)} minutes of delay. It learned of each disruption when you did. ${view==='sol'?'The board and timeline now show its plan; click a flight to compare.':'Press the plan button to see it on the board and timeline.'}</div>
+  return `<div class="sol"><div class="ctl"><button data-view="mine" aria-pressed="${view==='mine'}" class="${view==='mine'?'on':''}">Your shift</button><button data-view="sol" aria-pressed="${view==='sol'}" class="${view==='sol'?'on':''}">${name}</button></div>
+  <div>${mine?'This is your own plan with the fewest changes that clear the shift. ':''}It scored <b>${num(soln.score)}</b>, ${MED[sm]?MED[sm].toLowerCase():'no medal'}${sm===2?` (gold needs ${num(tg.gold)})`:sm<2?` (silver needs ${num(tg.silver)})`:''}: ${all.filter(r=>r.ok).length} of ${all.length} flights left, ${all.filter(r=>!r.ok).length} cancelled, ${all.reduce((a,r)=>a+(r.ok?r.delay:0),0)} minutes of delay. It learned of each disruption when you did, and changed no more than ${Core.budget(lvl)} flights at each one, as many as you can in ${decideSecs()} seconds. ${view==='sol'?'The board and timeline now show its plan; click a flight to compare.':'Press the plan button to see it on the board and timeline.'}</div>
   <div><b>Before the shift</b> ${start.length?`it planned ${start.length} flight${start.length>1?'s':''} differently from you (yours → its):<ul class="dl">${cap(start,6).map(x=>'<li>'+x+'</li>').join('')}</ul>`:'its plan matched yours.'}</div>
   ${steps?`<div><b>At each disruption</b><ul class="dl">${steps}</ul></div>`:''}</div>`;
 }
@@ -370,14 +384,14 @@ function freeze(){
   return changed;
 }
 function finish(){
-  const fin=scenarioAt(sc,Infinity),e=evaluate(fin,run.plan),z=sc.flights.map(f=>run.frozen[f.id]||{ok:e.flights[f.id].ok,points:e.flights[f.id].points,issues:e.flights[f.id].issues,delay:e.flights[f.id].delay});
+  const fin=scenarioAt(sc,Infinity),e=evaluate(fin,run.plan),z=sc.flights.map(f=>run.frozen[f.id]||{ok:e.flights[f.id].ok,points:e.flights[f.id].points,issues:e.flights[f.id].issues,delay:e.flights[f.id].delay,dep:e.flights[f.id].dep});
   const all=z.every(x=>x.ok),bonus=all?Math.max(0,fin.desks-e.peak)*R.deskBonus:0;
   sc.flights.forEach((f,i)=>run.frozen[f.id]=z[i]);
   result={hints,score:z.reduce((a,x)=>a+x.points,0)+bonus-hints*HINT,departed:z.filter(x=>x.ok).length,onTime:z.filter(x=>x.ok&&x.delay<=R.grace).length,total:z.length,
     delayMin:z.reduce((a,x)=>a+(x.ok?x.delay:0),0),bonus,log:run.log.concat([{t:Math.floor(run.c),s:'Shift complete.'}])};
   run0=run;run=null;
   const m=medal(result.score);
-  if(lvl&&m>(medals[lvl]||0)){medals[lvl]=m;store.set('mw-medals',medals)}
+  if(m>(medals[lvl]||0)){medals[lvl]=m;store.set('mw-medals',medals)}
   if(lvl&&m>=2&&lvl>progress){progress=lvl;store.set('mw-progress',progress)}
   options();render();$('result').scrollIntoView({block:'nearest',behavior:'smooth'});
 }
@@ -450,7 +464,7 @@ document.addEventListener('click',e=>{
   else if(b.id==='reroll'||b.id==='reroll2'){rolls[lvl]=(rolls[lvl]||0)+1;store.set('mw-rolls',rolls);load(lvl)}
   else if(b.id==='next')load(lvl+1);
   else if(b.id==='replan'){result=null;view='mine';render()}
-  else if(b.id==='showsol'){$('solwait').hidden=false;b.disabled=true;const id=sc.id;setTimeout(()=>{if(sc.id!==id)return;soln=Core.solution(sc);
+  else if(b.id==='showsol'){$('solwait').hidden=false;b.disabled=true;const id=sc.id;const gold=medal(result.score)>=2;setTimeout(()=>{if(sc.id!==id)return;soln=gold?Core.solution(sc):Core.clearingPlan(sc,plan,tg.silver);
     const e=evaluate(scenarioAt(sc,Infinity),soln.plan);solFrozen={};for(const f of sc.flights){const r=e.flights[f.id];solFrozen[f.id]={ok:r.ok,points:r.points,issues:r.issues,delay:r.delay,dep:r.dep}}
     view='sol';render()},30)}
   else if(d.view){view=d.view;render()}
@@ -462,14 +476,14 @@ document.addEventListener('click',e=>{
 $('scn').addEventListener('change',e=>load(e.target.value));
 document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key.toLowerCase()==='z'&&!/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)){e.preventDefault();undo()}});
 $('rules').innerHTML=[`Aircraft classes run S, M, L. A bigger stand or gate takes a smaller aircraft, never the reverse.`,
-`A stand is held from ${R.standBefore} minutes before departure to ${R.after} after. A gate from ${R.gateBefore} before to ${R.after} after. No overlaps, and nothing while a facility is shut (grey, or hatched when closed by a disruption).`,
-`Check-in opens 60 minutes before the scheduled time and closes ${R.closeBefore} before departure. Each desk clears 4 passengers a minute and is released once the flight is processed.`,
-`From shift 3, every flight needs a ground service team for its service time, finishing at departure. Only so many teams can work at once.`,
-`Once you start the shift the clock runs. Disruptions are announced as they happen: a late inbound aircraft, a stand or gate going unserviceable, or extra passengers. Each one pauses the clock while you re-plan; when the timer runs out the shift carries on.`,
+`A stand is held for the turnaround: from ${R.stand.S} minutes before departure for class S, ${R.stand.M} for M and ${R.stand.L} for L, to ${R.after} after. A gate is held from ${R.gateBefore} before to ${R.after} after, and closes to passengers ${R.gateClose} minutes before departure. No overlaps, and nothing while a facility is shut (grey, or hatched when closed by a disruption).`,
+`Check-in opens ${R.openBefore} minutes before the scheduled time and closes ${R.close.M} minutes before departure (${R.close.L} for class L). Most passengers checked in online, so each desk handles about ${sc?sc.rate:2} a minute and is released once the flight is processed.`,
+`From shift 3, three turnaround crews are on duty. Each flight needs one for its last 12 to 20 minutes before departure, to load the bags and close up the aircraft, so a fourth flight in that stretch at the same time has no crew.`,
+`Once you start the shift the clock runs. Disruptions are announced as they happen: a late inbound aircraft, a stand or gate going unserviceable, extra passengers, and from shift 6 an ATC departure slot, from shift 7 a crew short of duty hours, and from shift 8 a bag offload. Each one pauses the clock while you re-plan; when the timer runs out the shift carries on.`,
 `During the shift you can change any flight not yet on stand. Once its aircraft is on stand you can only hold it with more delay, and once check-in opens its desk count is fixed. A flight's result is fixed when it departs.`,
-`A flight that leaves scores ${R.ptsNormal} points, ${R.ptsHigh} if high priority (★). As in airline on-time figures, up to ${R.grace} minutes late still counts as on time and costs nothing. After that, each minute costs ${R.delayNormal} point, ${R.delayHigh} for high priority, up to ${R.maxDelay} minutes. Delay caused by a late inbound aircraft is not charged.`,
-`A flight with any rule broken at departure is cancelled: minus ${R.failPenalty}. If every flight leaves, each desk you never needed at peak earns ${R.deskBonus}.`,
-`Bronze beats the house controller, which plans the same way you do and re-plans at every disruption. Gold is the best plan a solver found knowing every disruption in advance. Silver is halfway and clears the shift.`,
+`A flight that leaves scores ${R.ptsNormal} points, ${R.ptsHigh} if high priority (★, it carries connecting passengers). As in airline on-time figures, up to ${R.grace} minutes late still counts as on time and costs nothing. After that, each minute costs ${R.delayNormal} point, ${R.delayHigh} for high priority. Crew duty hours allow up to ${R.maxDelay} minutes of delay, less if a crew is short of hours or ATC has given a slot. Delay caused by a late inbound aircraft, an ATC slot or a bag offload is not charged.`,
+`A flight with any rule broken at departure is cancelled. That costs ${R.failBase} points plus 1 for every passenger on board, as compensation and rebooking would. If every flight leaves, each desk you never needed at peak earns ${R.deskBonus}.`,
+`Bronze beats the house controller, which plans the same way you do and, at every disruption, re-plans only the flights that broke. Gold is the game's own solver: it learns of each disruption when you do and changes no more flights than you could in the time. Silver is halfway and clears the shift.`,
 `Desks are set automatically to the fewest that clear each flight in time (Auto). Press − or + to set them yourself, or Auto to hand them back. Undo (Ctrl+Z) steps back one change. On a flight with a problem, Suggest a fix re-plans just that flight around everyone else.`,
 `Drag a bar on the timeline sideways to change a flight's delay, or up and down onto another stand or gate. You can also select a flight and use the buttons.`].map(x=>'<li>'+x+'</li>').join('');
 load(Math.min(progress+1,store.get('mw-last')||0)||0);
