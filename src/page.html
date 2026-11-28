@@ -142,7 +142,7 @@ details{font-size:14px}summary{cursor:pointer;font-weight:600}details ul{margin:
     <div class="grow"></div>
     <div class="ctl"><button id="undo" disabled title="Undo (Ctrl+Z)">Undo</button><button id="reroll" hidden>New wave</button><button id="clear">Clear plan</button><button id="house">Show house plan</button><button id="run" class="go">Start the shift</button></div>
   </header>
-  <p class="intro">Get every departure off the apron. Each bar is one flight on its stand, labelled with its gate; the dark end is when it needs a turnaround crew. Red means a rule is broken: select the flight and pick a quick fix, drag the bar, or use the arrow keys (up and down change stand or gate, left and right change time). Then start the shift and handle what goes wrong.</p>
+  <p class="intro">Get every departure off the apron. Each bar is one flight on its stand, labelled with its gate; the dark end is when it needs a turnaround crew. Red means a rule is broken: select the flight and fix it yourself (or ask for a hint), drag the bar, or use the arrow keys (up and down change stand or gate, left and right change time). Then start the shift and handle what goes wrong.</p>
   <div class="note" id="note" hidden></div>
   <div class="alert" id="alert" hidden></div>
   <div id="result"></div>
@@ -303,8 +303,12 @@ function renderEditor(){
   ${known.teams?`<div class="fld"><span class="l">Crew</span><em class="need">needs a turnaround crew ${hhmm(r.dep-f.svc)} to ${hhmm(r.dep)} (its last ${f.svc} min) · ${known.teams} crews on duty; delay the flight to move this later</em></div>`:''}
 `;
 }
+let showFix=null;
+// Quick fixes stay hidden until the player asks for a hint on this flight.
 function fixHtml(f,fz){
-  fixes=quickFixes(f);if(!fixes.length)return'';
+  if(fz||result||!ev.flights[f.id].issues.length){fixes=[];return''}
+  if(showFix!==f.id){fixes=[];return`<div class="ctl"><button id="hint">Show a hint</button></div>`}
+  fixes=quickFixes(f);if(!fixes.length)return`<div class="lock">No quick fix for this flight on its own. Try moving or holding another flight first.</div>`;
   return `<div class="fld"><span class="l">Quick fixes</span><div class="fixes">${fixes.map((x,i)=>`<button data-fix="${i}" class="${i?'':'best'}">${esc(x.label)}<small>${x.left?`${x.left} problem${x.left>1?'s':''} left · `:''}${x.d>=0?'+':''}${num(x.d)} points${x.hint?` (incl. −${HINT} for the hint)`:''}</small></button>`).join('')}</div></div>`}
 function chart(load,cap,peak,what){
   const top=Math.max(cap+2,peak+1),y=v=>(60-v/top*56).toFixed(1);let d='M0 60',over='';
@@ -574,6 +578,7 @@ document.addEventListener('click',e=>{
     const e=evaluate(scenarioAt(sc,Infinity),soln.plan);solFrozen={};for(const f of sc.flights){const r=e.flights[f.id];solFrozen[f.id]={ok:r.ok,points:r.points,issues:r.issues,delay:r.delay,dep:r.dep}}
     view='sol';render()},30)}
   else if(d.view){view=d.view;render()}
+  else if(b.id==='hint'){showFix=sel;renderEditor()}
   else if(d.fix){const x=fixes[+d.fix];if(x){if(x.hint)setHints(hints+1);set(sel,x.patch)}}
   else if(b.id==='run')startRun();
   else if(b.id==='resume')resume(false);
@@ -607,7 +612,7 @@ $('rules').innerHTML=[`Aircraft classes run S, M, L. A bigger stand or gate take
 `A flight that leaves scores ${R.ptsNormal} points, ${R.ptsHigh} if high priority (★, it carries connecting passengers). As in airline on-time figures, up to ${R.grace} minutes late still counts as on time and costs nothing. After that, each minute costs ${R.delayNormal} point, ${R.delayHigh} for high priority. Crew duty hours allow up to ${R.maxDelay} minutes of delay, less if a crew is short of hours or ATC has given a slot. Delay caused by a late inbound aircraft, an ATC slot or a bag offload is not charged.`,
 `A flight with any rule broken at departure is cancelled. That costs ${R.failBase} points plus 1 for every passenger on board, as compensation and rebooking would. If every flight leaves, each desk you never needed at peak earns ${R.deskBonus}.`,
 `Bronze beats the house controller, which plans the same way you do and, at every disruption, re-plans only the flights that broke. Gold is the game's own solver: it learns of each disruption when you do and changes no more flights than you could in the time. Silver is halfway and clears the shift.`,
-`Desks are set automatically to the fewest that clear each flight in time (Auto). Press − or + to set them yourself, or Auto to hand them back. Undo (Ctrl+Z) steps back one change. On a flight with a problem, Quick fixes lists changes that clear its problems without breaking another flight, best score first. Single changes are free; the full re-plan of the flight (stand, gate and hold together) is a hint and costs ${HINT} points.`,
+`Desks are set automatically to the fewest that clear each flight in time (Auto). Press − or + to set them yourself, or Auto to hand them back. Undo (Ctrl+Z) steps back one change. On a flight with a problem, Show a hint lists changes that clear its problems without breaking another flight, best score first. Single changes are free; the full re-plan of the flight (stand, gate and hold together) is a hint and costs ${HINT} points.`,
 `Keyboard: select a flight, then Up and Down move it to the previous or next stand (or gate, if you clicked its gate bar), and Left and Right change its delay by a minute (five with Shift).`,
 `Each bar on the stand plan is one flight, labelled with its gate; its dark end is when it needs a turnaround crew. Drag a bar sideways to change the delay, or up and down onto another stand (or a gate bar onto another gate). Flights with no stand wait on the None row.`].map(x=>'<li>'+x+'</li>').join('');
 load(Math.min(progress+1,store.get('mw-last')||0)||0);
