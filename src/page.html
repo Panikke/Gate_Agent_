@@ -111,13 +111,13 @@ details{font-size:14px}summary{cursor:pointer;font-weight:600}details ul{margin:
 .intro{margin:0;color:var(--muted);font-size:14px;max-width:110ch}
 .desk{display:grid;grid-template-columns:330px minmax(0,1fr) 340px;grid-template-areas:"board tl ed";gap:14px;align-items:start}
 .desk .a-board{grid-area:board}.desk .a-tl{grid-area:tl}.desk .a-ed{grid-area:ed}
-.desk .board .cls{display:none}
-.desk .board .hd,.desk .board .row{grid-template-columns:3.4em 4.2em minmax(0,1fr) 2em 2em 6em}
+.desk .board .hd,.desk .board .row{grid-template-columns:3.4em 4.4em minmax(0,1fr) 1.2em 2em 2em 5.6em;gap:5px}
 @media (max-width:1280px){.desk{grid-template-columns:minmax(0,1fr) 340px;grid-template-areas:"tl tl" "board ed"}}
 @media (max-width:760px){.desk{grid-template-columns:minmax(0,1fr);grid-template-areas:"tl" "ed" "board"}}
 .tl .blk .crew{position:absolute;top:0;bottom:0;background:color-mix(in srgb,var(--ink) 30%,transparent);border-radius:0 2px 2px 0;pointer-events:none}
 .tl .blk .crew.short{background:var(--bad)}.tl .blk>span{position:relative}
 .tl .trk[data-row=stand]{height:40px}.tl .blk>span{display:block;line-height:15px;padding-top:2px}.tl .blk>span small{display:block;font-size:10px;opacity:.8}
+.tl .blk .sz{font-weight:700;font-size:10px;padding:0 3px;border-radius:2px;background:color-mix(in srgb,currentColor 16%,transparent)}
 .tl .r.thin .blk>span{padding-top:0;line-height:16px}
 .tl .r.thin .trk{height:20px}.tl .r.thin .blk{top:2px;bottom:2px;line-height:16px;font-size:10px}.tl .r.thin .lab{padding:2px 0}
 .tl .r.none .lab b{color:var(--bad)}
@@ -148,7 +148,7 @@ details{font-size:14px}summary{cursor:pointer;font-weight:600}details ul{margin:
   <div id="result"></div>
   <div class="desk">
     <div class="col a-board"><div class="board" id="board"></div><div class="panel" id="logp" hidden><h2>Shift log</h2><ul class="log" id="log"></ul></div></div>
-    <div class="panel a-tl"><div class="vt"><h2>Stand plan</h2><div class="ctl" role="group" aria-label="View"><button data-map="0" id="vt0" class="on" aria-pressed="true">Timeline</button><button data-map="1" id="vt1" aria-pressed="false">Apron map</button></div></div><div class="key" id="tlkey"><span><i style="background:var(--blk-ok)"></i>stand time</span><span><i style="background:color-mix(in srgb,var(--ink) 30%,var(--blk-ok))"></i>turnaround crew</span><span><i style="background:var(--blk-bad)"></i>rule broken</span><span><i style="background:repeating-linear-gradient(135deg,var(--shut) 0 4px,var(--bad) 4px 6px)"></i>closed</span></div><div class="tl-scroll"><div class="tl" id="tl"></div></div></div>
+    <div class="panel a-tl"><div class="vt"><h2>Stand plan</h2><div class="ctl" role="group" aria-label="View"><button data-map="0" id="vt0" class="on" aria-pressed="true">Timeline</button><button data-map="1" id="vt1" aria-pressed="false">Apron map</button></div></div><div class="key" id="tlkey"><span><i style="background:var(--blk-ok)"></i>stand time</span><span><i style="background:color-mix(in srgb,var(--ink) 30%,var(--blk-ok))"></i>turnaround crew</span><span><i style="background:var(--blk-bad)"></i>rule broken</span><span><b>S M L</b> aircraft size, after the flight number; rows show the biggest size each stand or gate takes</span><span><i style="background:repeating-linear-gradient(135deg,var(--shut) 0 4px,var(--bad) 4px 6px)"></i>closed</span></div><div class="tl-scroll"><div class="tl" id="tl"></div></div></div>
     <div class="col a-ed"><div class="panel" id="editor"></div><div class="panel"><details id="how"><summary>Rules and scoring</summary><ul id="rules"></ul></details></div></div>
   </div>
 </div>
@@ -317,7 +317,7 @@ function chart(load,cap,peak,what){
 function bar(f,kind,w,PL,FR,top){
   const r=ev.flights[f.id],fz=FR[f.id],L=lockOf(f.id),span=w[1]-w[0];
   const bad=!fz&&(kind==='gate'?r.issues.some(i=>i.startsWith('Gate ')):r.issues.length>0);
-  let label=esc(f.id)+(f.high&&kind==='stand'?'★':''),crew='';
+  let label=esc(f.id)+(f.high&&kind==='stand'?'★':'')+(kind==='stand'?` <b class="sz">${f.cls}</b>`:''),crew='';
   if(kind==='stand'){label+=`<small>${PL[f.id].gate?'gate '+PL[f.id].gate:'no gate'}</small>`;
     if(known.teams){const a=r.dep-f.svc,short=r.issues.some(i=>i.includes('turnaround crew'));
       crew=`<i class="crew${short?' short':''}" style="left:${((a-w[0])/span*100).toFixed(2)}%;width:${(f.svc/span*100).toFixed(2)}%"></i>`}}
