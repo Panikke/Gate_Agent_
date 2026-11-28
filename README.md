@@ -1,6 +1,6 @@
 # Morning Wave
 
-A solo puzzle game about planning an airport's morning departures. You give each flight a stand, a gate and check-in desks, decide which flights take a delay, then start the shift. Things go wrong while it runs: late aircraft, stands out of use, extra passengers. You re-plan against the clock, and get a debrief at the end. Each shift you clear unlocks a harder one.
+A solo puzzle game about planning an airport's morning departures. You give each flight a stand, a gate and check-in desks, decide which flights take a delay, then start the shift. Things go wrong while it runs, as they do at a real airport: late aircraft, stands out of use, extra passengers, ATC slots, crews short of hours. You re-plan against the clock, and get a debrief at the end. Each shift you clear unlocks a harder one.
 
 It is one web page. There is nothing to install and no account to make.
 
@@ -24,6 +24,7 @@ If any step is unclear, the [installation guide](docs/wiki/02-Installing.md) wal
 | [Updating](docs/wiki/06-Updating.md) | Getting a newer version without losing progress |
 | [Troubleshooting](docs/wiki/07-Troubleshooting.md) | What to do when something looks wrong |
 | [For developers](docs/wiki/08-For-developers.md) | How the code is laid out, how to build and test |
+| [Real operations](docs/wiki/09-Real-operations.md) | Where each rule comes from in real airport operations |
 
 ## What is in this folder
 

@@ -12,7 +12,7 @@ Open the game and pick **Training day (the brief)** from the **Shift** menu at t
 | Flight editor | Right, top | The settings for the flight you have selected |
 | Apron and gates | Right, below the editor | A timeline of every stand and gate, with each flight as a block. Red blocks clash |
 | Desk chart | Below the gates | How many check-in desks are busy at each moment. Red means over the limit |
-| Ground teams | Bottom of the timeline, from shift 3 | One row per team, showing which flight each team is turning round. A flight no team can take drops into a red **No team** row: delay it, or another flight near it, until it fits |
+| Turnaround crews | Bottom of the timeline, from shift 3 | One row per crew, showing which flight each crew is closing up. A flight no crew can take drops into a red **No crew** row: delay it, or another flight near it, until it fits |
 
 ## Fixing a flight, step by step
 
@@ -41,17 +41,17 @@ On the **Apron and gates** timeline, each flight is a bar.
 ## Running the shift
 
 1. When the board shows no red, press **Start the shift** (yellow button, top right).
-2. The clock starts at 06:30. A dark bar appears at the top showing the time. **Fast forward ×4** speeds it up.
-3. **Disruptions are announced as they happen**: a late inbound aircraft, a stand or gate going out of use, or extra passengers for a flight. The bar turns yellow, the clock stops and a countdown starts.
+2. The clock starts at 05:30, when the first check-in desks open. A dark bar appears at the top showing the time. **Fast forward ×4** speeds it up.
+3. **Disruptions are announced as they happen**: a late inbound aircraft, a stand or gate going out of use, or extra passengers for a flight. From shift 6 ATC can give a flight a departure slot, from shift 7 a crew can run short of duty hours, and from shift 8 a bag may need offloading. The bar turns yellow, the clock stops and a countdown starts.
 4. **Re-plan before the countdown ends.** The affected flight is selected for you. Fix anything that has turned red, then press **Resume shift**. If the countdown runs out, the shift carries on as it is.
 5. Once a flight's aircraft is on stand you can only hold it with more delay. Once its check-in opens, its desk count is fixed. Once it departs, its result is final.
-6. When the last flight has gone, the **Shift debrief** appears: your score and medal, the three flights that cost you most points and why, and one thing to do differently next time.
+6. When the last flight has gone, the **Shift debrief** appears: your score and medal, your delay minutes by cause in real IATA delay codes, the three flights that cost you most points and why, and one thing to do differently next time.
 
 The **Shift log** under the departures board lists every disruption, departure and cancellation as it happens.
 
 ### Learning from a shift you did not clear
 
-At the bottom of the debrief, press **Show a silver plan** (after a shift you did clear, it says **Compare with the gold plan**). The game works out the best plan it can find. Like you, it only learns of each disruption when it is announced. It then shows:
+At the bottom of the debrief, press **Show a plan that clears the shift** (after a shift you did clear, it says **Compare with the gold plan**). The game first tries to fix your own plan with as few changes as possible; if that cannot reach silver, it shows the lowest-scoring computer plan that does. The button on the plan says which it is: **Your plan, fixed**, **Silver plan** or **Gold plan**. Like you, the plan only learns of each disruption when it is announced, and it never changes more flights at a disruption than you could in the time (7 on a 60-second pause, down to 3 on a 25-second one). It then shows:
 
 - **Its score**, and how many flights it got away.
 - **Before the shift:** the flights it planned differently from you, shown as yours → its.
